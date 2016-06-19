@@ -1104,12 +1104,16 @@ module.exports = function(containerId) {
   //--functions--//
 
   //I18N functions
-  this.setLanguage=function(li) {
+  this.setLanguage = function(li) {
     this.currentLanguage=li;
     this.eventsManager.callHandlers("languagechange",li);
   }
-  this.getLanguage=function() {return this.currentLanguage;}
-  this.getLanguageName=function() {return this.story.languages[this.currentLanguage];}
+  this.getLanguage = function() {return this.currentLanguage;}
+  this.getLanguageName = function() {return this.story.languages[this.currentLanguage];}
+  this.getLanguages = function() {
+    if(this.story!=null) {return this.story.languages;}
+    else {return [];}
+  }
 
   //create elements
   this.playerElement=(typeof containerId=="undefined")?document.createElement("div"):document.getElementById(containerId);
@@ -1281,7 +1285,6 @@ module.exports = function(containerId) {
 
   //seek()
   //Jumps to specific time in the story
-  //TODO implement the skip functionality
   this.seek=function(newTime) {
     if(!this.loaded) {
       this.log.warning("Seek canceled because the story is not loaded yet.", this);
@@ -1366,6 +1369,9 @@ module.exports = function(containerId) {
 
     console.log("start time:"+this.starttime+", playback time:"+this.time);
     console.log("new TLI:"+this.tli+"/"+this.story.timeline.length);
+
+    //notify listeners for the time change
+    thisobj.eventsManager.callHandlers("playbacktimechange", {time:this.time, forced:true});
 
     //continue
     this._drawActors();
@@ -1566,7 +1572,7 @@ module.exports = function(containerId) {
   this.hideInfo=function() {this.info.container.style.display="none";}
 
   this._onPlaybackTimeChange = function() {
-    thisobj.eventsManager.callHandlers("playbacktimechange", thisobj.time);
+    thisobj.eventsManager.callHandlers("playbacktimechange", {time:thisobj.time, forced:false});
   }
 
   this.drawTimer=setInterval(function(){thisobj.draw();},25);
