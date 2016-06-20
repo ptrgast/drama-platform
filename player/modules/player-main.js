@@ -8,7 +8,7 @@ drama.motion=require("./dp-motions.js");
 drama.actions=require("./dp-actions.js");
 
 //////////// The Player Object ////////////
-module.exports = function(containerId) {
+module.exports = function(containerId, options) {
   var thisobj = this;
 
   //--prototypes & includes--//
@@ -20,10 +20,16 @@ module.exports = function(containerId) {
   this.Controls=require("./dp-controls.js");
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/dp-story.js");
+  this.OptionsManager=require("./../../common/mod-optionsmanager.js");
+
+  //--prepare options--//
+  this._defaultOptions = {
+    showControls: true
+  }
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.31.1";
+  this.PLAYER_VERSION = "0.32.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -46,19 +52,24 @@ module.exports = function(containerId) {
   this.drawTimer;
   this.playbackProgressTimer = null;
   this.playbackProgressTimerInterval = 200;
+  this.options = new this.OptionsManager(this._defaultOptions, options);
 
   //--functions--//
 
   //I18N functions
-  this.setLanguage=function(li) {
+  this.setLanguage = function(li) {
     this.currentLanguage=li;
     this.eventsManager.callHandlers("languagechange",li);
   }
-  this.getLanguage=function() {return this.currentLanguage;}
-  this.getLanguageName=function() {return this.story.languages[this.currentLanguage];}
+  this.getLanguage = function() {return this.currentLanguage;}
+  this.getLanguageName = function() {return this.story.languages[this.currentLanguage];}
+  this.getLanguages = function() {
+    if(this.story!=null) {return this.story.languages;}
+    else {return [];}
+  }
 
   //create elements
-  this.playerElement=(typeof containerId=="undefined")?document.createElement("div"):document.getElementById(containerId);
+  this.playerElement=(typeof containerId=="undefined" || containerId==null)?document.createElement("div"):document.getElementById(containerId);
   this.playerElement.style.position="relative";
   this.playerElement.style.overflow="hidden";
   this.playerElement.style.backgroundColor="#000";
@@ -77,7 +88,7 @@ module.exports = function(containerId) {
   this.playerElement.appendChild(this.canvasWrapper);
   this.playerElement.appendChild(this.notificationbox.container);
   this.playerElement.appendChild(this.subtitlebox.container);
-  this.playerElement.appendChild(this.controlsbox.container);
+  if(this.options.get("showControls")==true) {this.playerElement.appendChild(this.controlsbox.container)};
   this.context=this.canvas.getContext("2d");
 
   //returns the current time
@@ -227,7 +238,6 @@ module.exports = function(containerId) {
 
   //seek()
   //Jumps to specific time in the story
-  //TODO implement the skip functionality
   this.seek=function(newTime) {
     if(!this.loaded) {
       this.log.warning("Seek canceled because the story is not loaded yet.", this);
@@ -311,7 +321,9 @@ module.exports = function(containerId) {
     this.mstarttime = this.starttime;
 
     console.log("start time:"+this.starttime+", playback time:"+this.time);
-    console.log("new TLI:"+this.tli+"/"+this.story.timeline.length);
+
+    //notify listeners for the time change
+    thisobj.eventsManager.callHandlers("playbacktimechange", {time:this.time, forced:true});
 
     //continue
     this._drawActors();
@@ -512,7 +524,7 @@ module.exports = function(containerId) {
   this.hideInfo=function() {this.info.container.style.display="none";}
 
   this._onPlaybackTimeChange = function() {
-    thisobj.eventsManager.callHandlers("playbacktimechange", thisobj.time);
+    thisobj.eventsManager.callHandlers("playbacktimechange", {time:thisobj.time, forced:false});
   }
 
   this.drawTimer=setInterval(function(){thisobj.draw();},25);

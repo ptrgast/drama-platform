@@ -14,7 +14,7 @@ drama.Editor = function(containerId) {
   this._logName = "Editor";
   this.EDITOR_VERSION = "0.6";
   this.log.message("Version "+this.EDITOR_VERSION, this);
-  this.player = new this.Player();
+  this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
 
   //check that the required libraries are present
@@ -54,6 +54,7 @@ drama.Editor = function(containerId) {
   //init the top toolbar
   this._initToolbar = function() {
     this.toolbar = {
+      name: "topbar",
     	items: [
     		{ type: 'check',  id: 'item1', caption: 'Check', img: 'icon-page', checked: true },
     		{ type: 'break',  id: 'break0' },
@@ -62,17 +63,39 @@ drama.Editor = function(containerId) {
     			{ text: 'Item 2', icon: 'icon-page' },
     			{ text: 'Item 3', value: 'Item Three', icon: 'icon-page' }
     		]},
-    		{ type: 'break', id: 'break1' },
-    		{ type: 'radio',  id: 'item3',  group: '1', caption: 'Radio 1', icon: 'fa-star', checked: true },
-    		{ type: 'radio',  id: 'item4',  group: '1', caption: 'Radio 2', icon: 'fa-star-empty' },
+        { type: 'break', id: 'break1' },
+        { type: 'check', id: 'playback-ctls-play', text: 'Play', onClick: function(event){
+          if(!event.item.checked) {thisobj.player.play();}
+          else {thisobj.player.pause();}
+        }},
+        { type: 'button', id: 'playback-ctls-stop', text: 'Stop', onClick: function(event){
+          w2ui["layout_top_toolbar"].uncheck("playback-ctls-play");
+          thisobj.player.stop();
+          thisobj._onPlaybackTimeChange({time:0, forced:false});
+        }},
+        { type: 'html', id: 'playback-ctls-timegauge', html: '<span class="minutes">00</span>:<span class="seconds">00</span>.<span class="millis">000<span>'},
+        { type: 'break', id: 'break1' },
+        { type: 'menu',   id: 'playback-ctls-subtitles', caption: 'Subtitles', items: [], onClick: function(event){
+          console.log("lang");
+        }},
+        { type: 'break', id: 'break1' },
+        { type: 'button', id: 'playback-ctls-fullscreen', text: 'Fullscreen', onClick: function(event){
+          thisobj.player.setFullscreen(true);
+        }},
+        { type: 'break', id: 'break1' },
     		{ type: 'spacer' },
     		{ type: 'button',  id: 'item5',  caption: 'Item 5', icon: 'fa-home' }
-    	]
+    	],
+      onClick: function(event) {
+        if(event.item.id=="playback-ctls-subtitles" && event.subItem!=null) {
+          thisobj.player.setLanguage(event.subItem.langIndex);
+          w2ui["layout_top_toolbar"].set("playback-ctls-subtitles", {caption:event.subItem.value});
+        }
+      }
     };
   }
 
   this._layoutResizeHandler = function() {
-    console.log(".");
     thisobj.player._onresize();
   }
 
@@ -107,10 +130,39 @@ drama.Editor = function(containerId) {
       }
       //console.log(current.actor);
     }
+
+    //refresh the subtitles menu
+    var subtitlesMenuItems = [];
+    var languages = this.player.getLanguages();
+    for(var i=0; i<languages.length; i++) {
+      subtitlesMenuItems.push({
+        langIndex:i,
+        text:languages[i]+" subtitles",
+        value:languages[i]
+      });
+    }
+    var subtitlesMenu = w2ui["layout_top_toolbar"].get("playback-ctls-subtitles");
+    w2ui["layout_top_toolbar"].set("playback-ctls-subtitles", {
+      caption:this.player.getLanguageName(),
+      count:subtitlesMenuItems.length
+    });
+    subtitlesMenu.items = subtitlesMenuItems;
   }
 
-  this._onPlaybackTimeChange = function(time) {
-    this.timelineEditor.setCurrentTime(time);
+  this._onPlaybackTimeChange = function(change) {
+    if(!change.forced) {
+      this.timelineEditor.setCurrentTime(change.time);
+    }
+    //refresh the timegauge
+    var minutes = Math.floor(change.time/60000);
+    var seconds = Math.floor((change.time-(minutes*60000))/1000);
+    var millis = (change.time-(minutes*60000+seconds*1000))|0;
+    if(minutes<10) {minutes="0"+minutes;}
+    if(seconds<10) {seconds="0"+seconds;}
+    if(millis<10) {millis="00"+millis;} else if(millis<100) {millis="0"+millis;}
+    $("#tb_layout_top_toolbar_item_playback-ctls-timegauge .minutes").text(minutes);
+    $("#tb_layout_top_toolbar_item_playback-ctls-timegauge .seconds").text(seconds);
+    $("#tb_layout_top_toolbar_item_playback-ctls-timegauge .millis").text(millis);
   }
 
   //initialize

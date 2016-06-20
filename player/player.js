@@ -452,6 +452,26 @@ function MovableObject() {
 }
 
 },{"./dp-audiotrack.js":1,"./dp-log.js":2}],4:[function(require,module,exports){
+module.exports = function(defaultOptions, userOptions) {
+
+  var thisobj = this;
+
+  this.defaultOptions = (defaultOptions==null)?{}:defaultOptions;
+  this.userOptions = (userOptions==null)?{}:userOptions;
+
+  this.get = function(param) {
+    if(typeof this.userOptions[param]=="undefined") {
+      if(typeof this.defaultOptions[param]=="undefined") {
+        return null;
+      } else {
+        return this.defaultOptions[param];
+      }
+    }
+  }
+
+}
+
+},{}],5:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -553,14 +573,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -728,7 +748,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":10,"./dp-volumecontrol.js":14}],7:[function(require,module,exports){
+},{"./dp-languageselector.js":11,"./dp-volumecontrol.js":15}],8:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -763,7 +783,7 @@ module.exports = function() {
 
 }
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj=this;
@@ -814,7 +834,7 @@ function Listener(event, handler) {
   this.handler=handler;
 }
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -869,7 +889,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -900,7 +920,7 @@ module.exports = function() {
 
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -930,7 +950,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -963,7 +983,7 @@ module.exports={
 
 };
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -990,7 +1010,7 @@ module.exports = function() {
 	}
 }
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -1051,7 +1071,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -1062,7 +1082,7 @@ drama.motion=require("./dp-motions.js");
 drama.actions=require("./dp-actions.js");
 
 //////////// The Player Object ////////////
-module.exports = function(containerId) {
+module.exports = function(containerId, options) {
   var thisobj = this;
 
   //--prototypes & includes--//
@@ -1074,10 +1094,16 @@ module.exports = function(containerId) {
   this.Controls=require("./dp-controls.js");
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/dp-story.js");
+  this.OptionsManager=require("./../../common/mod-optionsmanager.js");
+
+  //--prepare options--//
+  this._defaultOptions = {
+    showControls: true
+  }
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.31.1";
+  this.PLAYER_VERSION = "0.32.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -1100,19 +1126,24 @@ module.exports = function(containerId) {
   this.drawTimer;
   this.playbackProgressTimer = null;
   this.playbackProgressTimerInterval = 200;
+  this.options = new this.OptionsManager(this._defaultOptions, options);
 
   //--functions--//
 
   //I18N functions
-  this.setLanguage=function(li) {
+  this.setLanguage = function(li) {
     this.currentLanguage=li;
     this.eventsManager.callHandlers("languagechange",li);
   }
-  this.getLanguage=function() {return this.currentLanguage;}
-  this.getLanguageName=function() {return this.story.languages[this.currentLanguage];}
+  this.getLanguage = function() {return this.currentLanguage;}
+  this.getLanguageName = function() {return this.story.languages[this.currentLanguage];}
+  this.getLanguages = function() {
+    if(this.story!=null) {return this.story.languages;}
+    else {return [];}
+  }
 
   //create elements
-  this.playerElement=(typeof containerId=="undefined")?document.createElement("div"):document.getElementById(containerId);
+  this.playerElement=(typeof containerId=="undefined" || containerId==null)?document.createElement("div"):document.getElementById(containerId);
   this.playerElement.style.position="relative";
   this.playerElement.style.overflow="hidden";
   this.playerElement.style.backgroundColor="#000";
@@ -1131,7 +1162,7 @@ module.exports = function(containerId) {
   this.playerElement.appendChild(this.canvasWrapper);
   this.playerElement.appendChild(this.notificationbox.container);
   this.playerElement.appendChild(this.subtitlebox.container);
-  this.playerElement.appendChild(this.controlsbox.container);
+  if(this.options.get("showControls")==true) {this.playerElement.appendChild(this.controlsbox.container)};
   this.context=this.canvas.getContext("2d");
 
   //returns the current time
@@ -1281,7 +1312,6 @@ module.exports = function(containerId) {
 
   //seek()
   //Jumps to specific time in the story
-  //TODO implement the skip functionality
   this.seek=function(newTime) {
     if(!this.loaded) {
       this.log.warning("Seek canceled because the story is not loaded yet.", this);
@@ -1365,7 +1395,9 @@ module.exports = function(containerId) {
     this.mstarttime = this.starttime;
 
     console.log("start time:"+this.starttime+", playback time:"+this.time);
-    console.log("new TLI:"+this.tli+"/"+this.story.timeline.length);
+
+    //notify listeners for the time change
+    thisobj.eventsManager.callHandlers("playbacktimechange", {time:this.time, forced:true});
 
     //continue
     this._drawActors();
@@ -1566,7 +1598,7 @@ module.exports = function(containerId) {
   this.hideInfo=function() {this.info.container.style.display="none";}
 
   this._onPlaybackTimeChange = function() {
-    thisobj.eventsManager.callHandlers("playbacktimechange", thisobj.time);
+    thisobj.eventsManager.callHandlers("playbacktimechange", {time:thisobj.time, forced:false});
   }
 
   this.drawTimer=setInterval(function(){thisobj.draw();},25);
@@ -1611,10 +1643,10 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/dp-log.js":2,"./../../common/dp-story.js":3,"./dp-actions.js":4,"./dp-constants.js":5,"./dp-controls.js":6,"./dp-drawqueue.js":7,"./dp-eventsmanager.js":8,"./dp-infobox.js":9,"./dp-messagesbox.js":11,"./dp-motions.js":12,"./dp-subtitlebox.js":13}],16:[function(require,module,exports){
+},{"./../../common/dp-log.js":2,"./../../common/dp-story.js":3,"./../../common/mod-optionsmanager.js":4,"./dp-actions.js":5,"./dp-constants.js":6,"./dp-controls.js":7,"./dp-drawqueue.js":8,"./dp-eventsmanager.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-subtitlebox.js":14}],17:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 
 drama.Player = require("./modules/player-main.js");
 
-},{"./modules/player-main.js":15}]},{},[16]);
+},{"./modules/player-main.js":16}]},{},[17]);
