@@ -452,6 +452,26 @@ function MovableObject() {
 }
 
 },{"./dp-audiotrack.js":1,"./dp-log.js":2}],4:[function(require,module,exports){
+module.exports = function(defaultOptions, userOptions) {
+
+  var thisobj = this;
+
+  this.defaultOptions = (defaultOptions==null)?{}:defaultOptions;
+  this.userOptions = (userOptions==null)?{}:userOptions;
+
+  this.get = function(param) {
+    if(typeof this.userOptions[param]=="undefined") {
+      if(typeof this.defaultOptions[param]=="undefined") {
+        return null;
+      } else {
+        return this.defaultOptions[param];
+      }
+    }
+  }
+
+}
+
+},{}],5:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 
@@ -468,7 +488,7 @@ drama.Editor = function(containerId) {
   this._logName = "Editor";
   this.EDITOR_VERSION = "0.6";
   this.log.message("Version "+this.EDITOR_VERSION, this);
-  this.player = new this.Player();
+  this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
 
   //check that the required libraries are present
@@ -628,7 +648,7 @@ drama.Editor = function(containerId) {
 
 }
 
-},{"./../common/dp-log.js":2,"./../player/modules/player-main.js":22,"./storymanager/storymanager.js":5,"./timeline/timeline.js":6}],5:[function(require,module,exports){
+},{"./../common/dp-log.js":2,"./../player/modules/player-main.js":23,"./storymanager/storymanager.js":6,"./timeline/timeline.js":7}],6:[function(require,module,exports){
 module.exports = function() {
   var thisobj = this;
 
@@ -639,7 +659,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/dp-log.js":2}],6:[function(require,module,exports){
+},{"./../../common/dp-log.js":2}],7:[function(require,module,exports){
 module.exports = function() {
   var thisobj = this;
 
@@ -804,7 +824,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/dp-log.js":2,"./../../player/modules/player-main.js":22,"./tm-timehandle.js":8,"./tm-track.js":9,"./tm-trackitem.js":10}],7:[function(require,module,exports){
+},{"./../../common/dp-log.js":2,"./../../player/modules/player-main.js":23,"./tm-timehandle.js":9,"./tm-track.js":10,"./tm-trackitem.js":11}],8:[function(require,module,exports){
 module.exports = function(movableElement, parentElement, button) {
   var thisobj = this;
 
@@ -862,7 +882,7 @@ module.exports = function(movableElement, parentElement, button) {
 
 }
 
-},{"./../../common/dp-log.js":2}],8:[function(require,module,exports){
+},{"./../../common/dp-log.js":2}],9:[function(require,module,exports){
 module.exports = function(timeline) {
   var thisobj = this;
 
@@ -916,7 +936,7 @@ module.exports = function(timeline) {
 
 }
 
-},{"./../../common/dp-log.js":2,"./tm-draghelper.js":7}],9:[function(require,module,exports){
+},{"./../../common/dp-log.js":2,"./tm-draghelper.js":8}],10:[function(require,module,exports){
 module.exports = function() {
   var thisobj = this;
 
@@ -1029,7 +1049,7 @@ module.exports = function() {
   this._refresh();
 }
 
-},{"./../../common/dp-log.js":2,"./tm-trackitem.js":10}],10:[function(require,module,exports){
+},{"./../../common/dp-log.js":2,"./tm-trackitem.js":11}],11:[function(require,module,exports){
 module.exports = function(track) {
   var thisobj = this;
 
@@ -1148,7 +1168,7 @@ module.exports = function(track) {
   }
 }
 
-},{"./../../common/dp-log.js":2,"./tm-draghelper.js":7}],11:[function(require,module,exports){
+},{"./../../common/dp-log.js":2,"./tm-draghelper.js":8}],12:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -1250,14 +1270,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -1425,7 +1445,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":17,"./dp-volumecontrol.js":21}],14:[function(require,module,exports){
+},{"./dp-languageselector.js":18,"./dp-volumecontrol.js":22}],15:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1460,7 +1480,7 @@ module.exports = function() {
 
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj=this;
@@ -1511,7 +1531,7 @@ function Listener(event, handler) {
   this.handler=handler;
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -1566,7 +1586,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1597,7 +1617,7 @@ module.exports = function() {
 
 }
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -1627,7 +1647,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -1660,7 +1680,7 @@ module.exports={
 
 };
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -1687,7 +1707,7 @@ module.exports = function() {
 	}
 }
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -1748,7 +1768,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -1759,7 +1779,7 @@ drama.motion=require("./dp-motions.js");
 drama.actions=require("./dp-actions.js");
 
 //////////// The Player Object ////////////
-module.exports = function(containerId) {
+module.exports = function(containerId, options) {
   var thisobj = this;
 
   //--prototypes & includes--//
@@ -1771,10 +1791,16 @@ module.exports = function(containerId) {
   this.Controls=require("./dp-controls.js");
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/dp-story.js");
+  this.OptionsManager=require("./../../common/mod-optionsmanager.js");
+
+  //--prepare options--//
+  this._defaultOptions = {
+    showControls: true
+  }
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.31.1";
+  this.PLAYER_VERSION = "0.32.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -1797,6 +1823,7 @@ module.exports = function(containerId) {
   this.drawTimer;
   this.playbackProgressTimer = null;
   this.playbackProgressTimerInterval = 200;
+  this.options = new this.OptionsManager(this._defaultOptions, options);
 
   //--functions--//
 
@@ -1813,7 +1840,7 @@ module.exports = function(containerId) {
   }
 
   //create elements
-  this.playerElement=(typeof containerId=="undefined")?document.createElement("div"):document.getElementById(containerId);
+  this.playerElement=(typeof containerId=="undefined" || containerId==null)?document.createElement("div"):document.getElementById(containerId);
   this.playerElement.style.position="relative";
   this.playerElement.style.overflow="hidden";
   this.playerElement.style.backgroundColor="#000";
@@ -1832,7 +1859,7 @@ module.exports = function(containerId) {
   this.playerElement.appendChild(this.canvasWrapper);
   this.playerElement.appendChild(this.notificationbox.container);
   this.playerElement.appendChild(this.subtitlebox.container);
-  this.playerElement.appendChild(this.controlsbox.container);
+  if(this.options.get("showControls")==true) {this.playerElement.appendChild(this.controlsbox.container)};
   this.context=this.canvas.getContext("2d");
 
   //returns the current time
@@ -2065,7 +2092,6 @@ module.exports = function(containerId) {
     this.mstarttime = this.starttime;
 
     console.log("start time:"+this.starttime+", playback time:"+this.time);
-    console.log("new TLI:"+this.tli+"/"+this.story.timeline.length);
 
     //notify listeners for the time change
     thisobj.eventsManager.callHandlers("playbacktimechange", {time:this.time, forced:true});
@@ -2314,4 +2340,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/dp-log.js":2,"./../../common/dp-story.js":3,"./dp-actions.js":11,"./dp-constants.js":12,"./dp-controls.js":13,"./dp-drawqueue.js":14,"./dp-eventsmanager.js":15,"./dp-infobox.js":16,"./dp-messagesbox.js":18,"./dp-motions.js":19,"./dp-subtitlebox.js":20}]},{},[4]);
+},{"./../../common/dp-log.js":2,"./../../common/dp-story.js":3,"./../../common/mod-optionsmanager.js":4,"./dp-actions.js":12,"./dp-constants.js":13,"./dp-controls.js":14,"./dp-drawqueue.js":15,"./dp-eventsmanager.js":16,"./dp-infobox.js":17,"./dp-messagesbox.js":19,"./dp-motions.js":20,"./dp-subtitlebox.js":21}]},{},[5]);

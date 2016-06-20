@@ -14,7 +14,7 @@ drama.Editor = function(containerId) {
   this._logName = "Editor";
   this.EDITOR_VERSION = "0.6";
   this.log.message("Version "+this.EDITOR_VERSION, this);
-  this.player = new this.Player();
+  this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
 
   //check that the required libraries are present
