@@ -169,14 +169,34 @@ module.exports = {
 };
 
 },{}],3:[function(require,module,exports){
+module.exports = function(defaultOptions, userOptions) {
+
+  var thisobj = this;
+
+  this.defaultOptions = (defaultOptions==null)?{}:defaultOptions;
+  this.userOptions = (userOptions==null)?{}:userOptions;
+
+  this.get = function(param) {
+    if(typeof this.userOptions[param]=="undefined") {
+      if(typeof this.defaultOptions[param]=="undefined") {
+        return null;
+      } else {
+        return this.defaultOptions[param];
+      }
+    }
+  }
+
+}
+
+},{}],4:[function(require,module,exports){
 module.exports = function() {
   var thisobj=this;
   this.STATUS_NOT_LOADED=0;
   this.STATUS_LOADING=1;
   this.STATUS_LOADED=2;
 
-  this.log=require("./dp-log.js");
-  this.AudioTrack=require("./dp-audiotrack.js");
+  this.log=require("./mod-log.js");
+  this.AudioTrack=require("./mod-audiotrack.js");
   this._logName="Story";
   this._status=this.STATUS_NOT_LOADED;
   this._assetsPath="";
@@ -451,27 +471,7 @@ function MovableObject() {
   }
 }
 
-},{"./dp-audiotrack.js":1,"./dp-log.js":2}],4:[function(require,module,exports){
-module.exports = function(defaultOptions, userOptions) {
-
-  var thisobj = this;
-
-  this.defaultOptions = (defaultOptions==null)?{}:defaultOptions;
-  this.userOptions = (userOptions==null)?{}:userOptions;
-
-  this.get = function(param) {
-    if(typeof this.userOptions[param]=="undefined") {
-      if(typeof this.defaultOptions[param]=="undefined") {
-        return null;
-      } else {
-        return this.defaultOptions[param];
-      }
-    }
-  }
-
-}
-
-},{}],5:[function(require,module,exports){
+},{"./mod-audiotrack.js":1,"./mod-log.js":2}],5:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -1086,14 +1086,14 @@ module.exports = function(containerId, options) {
   var thisobj = this;
 
   //--prototypes & includes--//
-  this.log=require("./../../common/dp-log.js");
+  this.log=require("./../../common/mod-log.js");
   this.EventsManager=require("./dp-eventsmanager.js");
   this.DrawQueue=require("./dp-drawqueue.js");
   this.MessagesBox=require("./dp-messagesbox.js");
   this.InfoBox=require("./dp-infobox.js");
   this.Controls=require("./dp-controls.js");
   this.SubtitleBox=require("./dp-subtitlebox.js");
-  this.Story=require("./../../common/dp-story.js");
+  this.Story=require("./../../common/mod-story.js");
   this.OptionsManager=require("./../../common/mod-optionsmanager.js");
 
   //--prepare options--//
@@ -1643,7 +1643,7 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/dp-log.js":2,"./../../common/dp-story.js":3,"./../../common/mod-optionsmanager.js":4,"./dp-actions.js":5,"./dp-constants.js":6,"./dp-controls.js":7,"./dp-drawqueue.js":8,"./dp-eventsmanager.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-subtitlebox.js":14}],17:[function(require,module,exports){
+},{"./../../common/mod-log.js":2,"./../../common/mod-optionsmanager.js":3,"./../../common/mod-story.js":4,"./dp-actions.js":5,"./dp-constants.js":6,"./dp-controls.js":7,"./dp-drawqueue.js":8,"./dp-eventsmanager.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-subtitlebox.js":14}],17:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 

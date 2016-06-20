@@ -4,8 +4,8 @@ module.exports = function() {
   this.STATUS_LOADING=1;
   this.STATUS_LOADED=2;
 
-  this.log=require("./dp-log.js");
-  this.AudioTrack=require("./dp-audiotrack.js");
+  this.log=require("./mod-log.js");
+  this.AudioTrack=require("./mod-audiotrack.js");
   this._logName="Story";
   this._status=this.STATUS_NOT_LOADED;
   this._assetsPath="";

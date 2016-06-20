@@ -67,7 +67,7 @@ drama.StatusInspector = require("./mod-statusinspector.js");
   var thisobj = this;
 
   //--prototypes & includes--/
-  this.log=require("./../../common/dp-log.js");
+  this.log=require("./../../common/mod-log.js");
 
   //--variables--//
   this._logName = "StatusInspector";
@@ -240,4 +240,4 @@ drama.StatusInspector = require("./mod-statusinspector.js");
 
 }
 
-},{"./../../common/dp-log.js":1}]},{},[2]);
+},{"./../../common/mod-log.js":1}]},{},[2]);

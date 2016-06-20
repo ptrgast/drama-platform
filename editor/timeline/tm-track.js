@@ -2,7 +2,7 @@ module.exports = function() {
   var thisobj = this;
 
   //--prototypes--//
-  this.log = require("./../../common/dp-log.js");
+  this.log = require("./../../common/mod-log.js");
   this.TrackItem = require("./tm-trackitem.js");
 
   //--variables--//

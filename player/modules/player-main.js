@@ -12,14 +12,14 @@ module.exports = function(containerId, options) {
   var thisobj = this;
 
   //--prototypes & includes--//
-  this.log=require("./../../common/dp-log.js");
+  this.log=require("./../../common/mod-log.js");
   this.EventsManager=require("./dp-eventsmanager.js");
   this.DrawQueue=require("./dp-drawqueue.js");
   this.MessagesBox=require("./dp-messagesbox.js");
   this.InfoBox=require("./dp-infobox.js");
   this.Controls=require("./dp-controls.js");
   this.SubtitleBox=require("./dp-subtitlebox.js");
-  this.Story=require("./../../common/dp-story.js");
+  this.Story=require("./../../common/mod-story.js");
   this.OptionsManager=require("./../../common/mod-optionsmanager.js");
 
   //--prepare options--//

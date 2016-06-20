@@ -5,7 +5,7 @@ drama.Editor = function(containerId) {
   var thisobj = this;
 
   //--prototypes & includes--//
-  this.log = require("./../common/dp-log.js");
+  this.log = require("./../common/mod-log.js");
   this.StoryManager = require("./storymanager/storymanager.js");
   this.TimelineEditor = require("./timeline/timeline.js");
   this.Player = require("./../player/modules/player-main.js");

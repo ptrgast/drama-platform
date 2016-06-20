@@ -2,7 +2,7 @@
   var thisobj = this;
 
   //--prototypes & includes--/
-  this.log=require("./../../common/dp-log.js");
+  this.log=require("./../../common/mod-log.js");
 
   //--variables--//
   this._logName = "StatusInspector";
