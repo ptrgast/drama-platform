@@ -9,6 +9,7 @@ module.exports = function() {
 	this.defaultDuration=4000;
 	this.timer=null;
 	var thisobj=this;
+
 	this.setText=function(text,duration) {
 		if(!duration) {duration=this.defaultDuration;}
 		clearInterval(this.timer);
@@ -16,6 +17,7 @@ module.exports = function() {
 		this.subtitleElement.innerHTML=text;
 		thisobj.subtitleElement.style.visibility="visible";
 	}
+	
 	this.hide=function() {
 		clearInterval(thisobj.timer);
 		thisobj.timer=null;
