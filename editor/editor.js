@@ -1538,11 +1538,12 @@ function Listener(event, handler) {
 module.exports = function(player) {
   //function _CelladoorDebugConsole(player) {
   this.player=player;
+  this._previousTotalFrames = 0;
 
   //create elements
   this.container=document.createElement("div");
   this.container.style.cssText="color:white;background-color:rgba(100,100,100,.8);margin:10px;padding:10px;min-width:300px;position:absolute;right:0px;text-align:left;z-index:1;display:none";
-  this.container.innerHTML="<div style='float:left;'>DEBUG CONSOLE</div><div style='float:right;'>version "+player.PLAYER_VERSION+"</div><div style='clear:both'></div>";
+  this.container.innerHTML="<div style='float:left;'>Player Info</div><div style='float:right;'>version "+player.PLAYER_VERSION+"</div><div style='clear:both'></div>";
   this.fpsbox=document.createElement("div");
   this.fpsbox.style.cssText="float:right;font-size:110%;";
   this.timebox=document.createElement("div");
@@ -1574,9 +1575,10 @@ module.exports = function(player) {
   }
 
   this.refresh=function(){
-    thisobj.setFPS(thisobj.player.fpscounter);
-    thisobj.player.fpscounter=0;
+    var fps = thisobj.player.framesCounter - thisobj._previousTotalFrames;
+    thisobj.setFPS(fps);
     thisobj.setTime(thisobj.player.time);
+    thisobj._previousTotalFrames = thisobj.player.framesCounter;
   }
 
   setInterval(this.refresh,1000);
@@ -1802,7 +1804,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.32.0";
+  this.PLAYER_VERSION = "0.32.1";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -1817,7 +1819,7 @@ module.exports = function(containerId, options) {
   this.mstarttime=0;
   this.tli=0; //timeline index
   this.drawQueue=new this.DrawQueue();
-  this.fpscounter=0;
+  this.framesCounter=0;
   this.started=0; //0:not started 1:softpause 2:started
   this.currentLanguage=0;
   this.volume=0.5;
@@ -1980,6 +1982,7 @@ module.exports = function(containerId, options) {
     this.mtimesec=0;
     this.starttime=0;
     this.mstarttime=0;
+    this.framesCounter = 0;
     //clear the actors queue (keep only the stagecurtain and the viewport)
     this.drawQueue.reset();
     this.drawQueue.add(this.story.stagecurtain);
@@ -2193,8 +2196,8 @@ module.exports = function(containerId, options) {
 
       //draw actors
       this._drawActors();
+      this.framesCounter++;
     }
-    this.fpscounter++;
   }
 
   this._drawActors = function() {

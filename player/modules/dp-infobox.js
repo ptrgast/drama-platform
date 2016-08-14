@@ -4,11 +4,12 @@
 module.exports = function(player) {
   //function _CelladoorDebugConsole(player) {
   this.player=player;
+  this._previousTotalFrames = 0;
 
   //create elements
   this.container=document.createElement("div");
   this.container.style.cssText="color:white;background-color:rgba(100,100,100,.8);margin:10px;padding:10px;min-width:300px;position:absolute;right:0px;text-align:left;z-index:1;display:none";
-  this.container.innerHTML="<div style='float:left;'>DEBUG CONSOLE</div><div style='float:right;'>version "+player.PLAYER_VERSION+"</div><div style='clear:both'></div>";
+  this.container.innerHTML="<div style='float:left;'>Player Info</div><div style='float:right;'>version "+player.PLAYER_VERSION+"</div><div style='clear:both'></div>";
   this.fpsbox=document.createElement("div");
   this.fpsbox.style.cssText="float:right;font-size:110%;";
   this.timebox=document.createElement("div");
@@ -40,9 +41,10 @@ module.exports = function(player) {
   }
 
   this.refresh=function(){
-    thisobj.setFPS(thisobj.player.fpscounter);
-    thisobj.player.fpscounter=0;
+    var fps = thisobj.player.framesCounter - thisobj._previousTotalFrames;
+    thisobj.setFPS(fps);
     thisobj.setTime(thisobj.player.time);
+    thisobj._previousTotalFrames = thisobj.player.framesCounter;
   }
 
   setInterval(this.refresh,1000);
