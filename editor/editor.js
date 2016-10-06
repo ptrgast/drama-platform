@@ -9,8 +9,7 @@ module.exports = function(trackInfo, onload, assetsPath) {
   this._active=false;
   this._paused=false;
   this._audioElement=document.createElement("audio");
-  this._loadProgress=0;
-  this._loadTimer;
+  this._ready=false;
 
   this.onPlaybackEnd=function() {
     thisobj._active = false;
@@ -33,25 +32,15 @@ module.exports = function(trackInfo, onload, assetsPath) {
     }
 
     //load track
-    this._audioElement.load();
+    this._audioElement.addEventListener("canplaythrough",this._onTrackReady);
     this._audioElement.addEventListener("ended",this.onPlaybackEnd);
+    this._audioElement.load();
     this._audioElement.volume=0;
-    this._audioElement.play();
-    this._loadTimer=setInterval(function() {thisobj._checkLoadProgress();},500);
   }
 
-  this._checkLoadProgress=function() {
-    if(this._audioElement.buffered.length>0&&this._loadProgress<1) {
-          this._loadProgress=this._audioElement.buffered.end(0)/this._audioElement.duration;
-    } else if(this._audioElement.seekable.length>0&&this._loadProgress<1) {
-          //for small clips Opera doesn't create any time range in the buffered property so let's check the seekable property
-          this._loadProgress=this._audioElement.seekable.end(0)/this._audioElement.duration;
-    }
-    if(this._loadProgress>=1) {
-      //track loaded
-      this._audioElement.pause();
-      this._audioElement.currentTime=0;
-      clearInterval(this._loadTimer);
+  this._onTrackReady=function() {
+    if(!thisobj._ready) {
+      thisobj._ready = true;
       onload();
     }
   }
@@ -65,6 +54,7 @@ module.exports = function(trackInfo, onload, assetsPath) {
   }
 
   this.play = function() {
+    if(!this._ready) {return;} //not ready to play
     this._active = true;
     this._paused = false;
     this._audioElement.play();
@@ -281,14 +271,6 @@ module.exports = function() {
 
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
-      // var image=new Image();
-      // image.onload=function(){thisobj._assetLoaded();}
-      // image.src=this._assetsPath+story.actors[i].url;
-      // story.actors[i].image=image;
-      // //add the motion object
-      // if(story.actors[i].motion==null) {
-      //   story.actors[i].motion={"type":null,"freq":0,"x":0,"y":0,"r":0};
-      // }
       story.actors[i] = new MovableObject().initWithActor(
         story.actors[i],
         function() {thisobj._assetLoaded();},
@@ -396,7 +378,7 @@ module.exports = function() {
   calls the onload function **/
   this._assetLoaded=function() {
     this.onprogress(++this._loadCounter,this._totalAssets);
-    if(this._loadCounter==this._totalAssets) {
+    if(this._loadCounter>=this._totalAssets) {
       //Story loaded!
       this.log.message("Story loaded!", thisobj);
       this._status=thisobj.STATUS_LOADED;
@@ -486,7 +468,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.6";
+  this.EDITOR_VERSION = "0.6.1";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
@@ -1804,7 +1786,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.32.1";
+  this.PLAYER_VERSION = "0.32.2";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;

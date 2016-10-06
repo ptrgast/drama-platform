@@ -90,14 +90,6 @@ module.exports = function() {
 
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
-      // var image=new Image();
-      // image.onload=function(){thisobj._assetLoaded();}
-      // image.src=this._assetsPath+story.actors[i].url;
-      // story.actors[i].image=image;
-      // //add the motion object
-      // if(story.actors[i].motion==null) {
-      //   story.actors[i].motion={"type":null,"freq":0,"x":0,"y":0,"r":0};
-      // }
       story.actors[i] = new MovableObject().initWithActor(
         story.actors[i],
         function() {thisobj._assetLoaded();},
@@ -205,7 +197,7 @@ module.exports = function() {
   calls the onload function **/
   this._assetLoaded=function() {
     this.onprogress(++this._loadCounter,this._totalAssets);
-    if(this._loadCounter==this._totalAssets) {
+    if(this._loadCounter>=this._totalAssets) {
       //Story loaded!
       this.log.message("Story loaded!", thisobj);
       this._status=thisobj.STATUS_LOADED;

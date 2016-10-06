@@ -8,8 +8,7 @@ module.exports = function(trackInfo, onload, assetsPath) {
   this._active=false;
   this._paused=false;
   this._audioElement=document.createElement("audio");
-  this._loadProgress=0;
-  this._loadTimer;
+  this._ready=false;
 
   this.onPlaybackEnd=function() {
     thisobj._active = false;
@@ -32,25 +31,15 @@ module.exports = function(trackInfo, onload, assetsPath) {
     }
 
     //load track
-    this._audioElement.load();
+    this._audioElement.addEventListener("canplaythrough",this._onTrackReady);
     this._audioElement.addEventListener("ended",this.onPlaybackEnd);
+    this._audioElement.load();
     this._audioElement.volume=0;
-    this._audioElement.play();
-    this._loadTimer=setInterval(function() {thisobj._checkLoadProgress();},500);
   }
 
-  this._checkLoadProgress=function() {
-    if(this._audioElement.buffered.length>0&&this._loadProgress<1) {
-          this._loadProgress=this._audioElement.buffered.end(0)/this._audioElement.duration;
-    } else if(this._audioElement.seekable.length>0&&this._loadProgress<1) {
-          //for small clips Opera doesn't create any time range in the buffered property so let's check the seekable property
-          this._loadProgress=this._audioElement.seekable.end(0)/this._audioElement.duration;
-    }
-    if(this._loadProgress>=1) {
-      //track loaded
-      this._audioElement.pause();
-      this._audioElement.currentTime=0;
-      clearInterval(this._loadTimer);
+  this._onTrackReady=function() {
+    if(!thisobj._ready) {
+      thisobj._ready = true;
       onload();
     }
   }
@@ -64,6 +53,7 @@ module.exports = function(trackInfo, onload, assetsPath) {
   }
 
   this.play = function() {
+    if(!this._ready) {return;} //not ready to play
     this._active = true;
     this._paused = false;
     this._audioElement.play();
