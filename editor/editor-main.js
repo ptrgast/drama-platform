@@ -12,7 +12,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.6.1";
+  this.EDITOR_VERSION = "0.7";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
@@ -35,7 +35,7 @@ drama.Editor = function(containerId) {
 
     thisobj._initToolbar();
 
-    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 5px; overflow: hidden;';
+    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 3px; overflow: hidden;';
     var mainStyle = layoutStyle + "background-color:#000;";
     var bottomStyle = layoutStyle + "background-color:#222;";
     $("#"+containerId).w2layout({
@@ -45,7 +45,7 @@ drama.Editor = function(containerId) {
         { type: 'top', size: 30, resizable: false, style: layoutStyle, toolbar: thisobj.toolbar },
         { type: 'main', style: mainStyle, content: thisobj.player.playerElement},
         { type: 'right', size: 300, resizable: true, style: layoutStyle, content: "right content" },
-        { type: 'bottom', size: 300, resizable: true, style: bottomStyle, content: thisobj.timelineEditor.container }
+        { type: 'bottom', size: 300, resizable: true, style: bottomStyle, content: thisobj.timelineEditor._container }
       ],
       onResize: thisobj._layoutResizeHandler
     });
@@ -102,34 +102,22 @@ drama.Editor = function(containerId) {
   this._storyLoaded = function() {
     var story = this.player.story;
 
-    //create tracks
-    for(var i=0;i<story.actors.length;i++) {
-      var current = story.actors[i];
-      current._editorTrack = new this.timelineEditor.Track();
-      this.timelineEditor.addTrack(current._editorTrack);
-    }
-
-    //set timeline duration (this must be done after the track creation
-    //otherwise we will have to set the duration of each track separately)
-    this.timelineEditor.setDuration(story.getDuration());
-
-    //add events to tracks
-    for(var i=0;i<story.timeline.length;i++) {
-      var currentEvent = story.timeline[i];
-      if(typeof currentEvent.actor!="undefined") {
-        //we 've got an actor here
-        var currentActor = story.actors[currentEvent.index];
-        var trackItem = new this.timelineEditor.TrackItem(currentActor._editorTrack);
-        trackItem.setName(currentActor.name+" ["+currentEvent.action+"]");
-        trackItem.setTime(currentEvent.time);
-        if(currentEvent.action!=null && typeof currentEvent.action=="object" && typeof currentEvent.action.params=="object" && typeof currentEvent.action.params.tt=="number") {
-          var duration = currentEvent.action.params.tt-currentEvent.time;
-          trackItem.setDuration(duration);
-        }
-        currentActor._editorTrack.addItem(trackItem);
+    for(var i=0; i<story.timeline.length; i++) {
+      var name = story.timeline[i].actor || story.timeline[i].audiotrack;
+      if(story.timeline[i].subtitle!=null) {name = "subtitle";}
+      var endTime = null;
+      if(
+        story.timeline[i].action!=null &&
+        typeof story.timeline[i].action=="object" &&
+        story.timeline[i].action.params!=null &&
+        typeof story.timeline[i].action.params=="object" &&
+        typeof story.timeline[i].action.params.tt=="number"
+      ) {
+        endTime = story.timeline[i].time+story.timeline[i].action.params.tt;
       }
-      //console.log(current.actor);
+      this.timelineEditor.addItem(i, name, name, story.timeline[i].time, endTime);
     }
+    this.timelineEditor._render();
 
     //refresh the subtitles menu
     var subtitlesMenuItems = [];
@@ -168,8 +156,9 @@ drama.Editor = function(containerId) {
   //initialize
   $(window).load(this._init);
 
-  this.timelineEditor.onusertime = function(newTime) {
+  this._onUserTime = function(newTime) {
     thisobj.player.seek(newTime);
   }
+  this.timelineEditor.eventsManager.addListener("currenttimechange", this._onUserTime);
 
 }

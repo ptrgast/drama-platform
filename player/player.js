@@ -101,6 +101,57 @@ function getContentType(file) {
 }
 
 },{}],2:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj=this;
+  this.listeners=[];
+
+  this.addListener=function(event,handler) {
+    //check that this handler is not already registered
+    if(this._findListener(event,handler)<0) {
+      var listener=new Listener(event,handler);
+      this.listeners.push(listener);
+    }
+  }
+
+  this.removeListener=function(event,handler) {
+    var i=this._findListener(event,handler);
+    if(i>=0) {
+      this.listeners.splice(i,1);
+    }
+  }
+
+  this.callHandlers=function(event,params) {
+    for(var i=0;i<this.listeners.length;i++) {
+      var currentListener=this.listeners[i];
+      if(currentListener.event==event) {
+        if(typeof params=="undefined") {
+          currentListener.handler();
+        } else {
+          currentListener.handler(params);
+        }
+      }
+    }
+  }
+
+  this._findListener=function(event,handler) {
+    for(var i=0;i<this.listeners.length;i++) {
+      var currentListener=this.listeners[i];
+      if(currentListener.handler==handler && currentListener.event==event) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+}
+
+function Listener(event, handler) {
+  this.event=event;
+  this.handler=handler;
+}
+
+},{}],3:[function(require,module,exports){
 //Log
 module.exports = {
   ALL:0,
@@ -158,7 +209,7 @@ module.exports = {
   }
 };
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 module.exports = function(defaultOptions, userOptions) {
 
   var thisobj = this;
@@ -178,7 +229,7 @@ module.exports = function(defaultOptions, userOptions) {
 
 }
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 module.exports = function() {
   var thisobj=this;
   this.STATUS_NOT_LOADED=0;
@@ -453,7 +504,7 @@ function MovableObject() {
   }
 }
 
-},{"./mod-audiotrack.js":1,"./mod-log.js":2}],5:[function(require,module,exports){
+},{"./mod-audiotrack.js":1,"./mod-log.js":3}],6:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -555,14 +606,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -730,7 +781,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":11,"./dp-volumecontrol.js":15}],8:[function(require,module,exports){
+},{"./dp-languageselector.js":11,"./dp-volumecontrol.js":15}],9:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -763,57 +814,6 @@ module.exports = function() {
     return this.items.length;
   }
 
-}
-
-},{}],9:[function(require,module,exports){
-module.exports = function() {
-
-  var thisobj=this;
-  this.listeners=[];
-
-  this.addListener=function(event,handler) {
-    //check that this handler is not already registered
-    if(this._findListener(event,handler)<0) {
-      var listener=new Listener(event,handler);
-      this.listeners.push(listener);
-    }
-  }
-
-  this.removeListener=function(event,handler) {
-    var i=this._findListener(event,handler);
-    if(i>=0) {
-      this.listeners.splice(i,1);
-    }
-  }
-
-  this.callHandlers=function(event,params) {
-    for(var i=0;i<this.listeners.length;i++) {
-      var currentListener=this.listeners[i];
-      if(currentListener.event==event) {
-        if(typeof params=="undefined") {
-          currentListener.handler();
-        } else {
-          currentListener.handler(params);
-        }
-      }
-    }
-  }
-
-  this._findListener=function(event,handler) {
-    for(var i=0;i<this.listeners.length;i++) {
-      var currentListener=this.listeners[i];
-      if(currentListener.handler==handler && currentListener.event==event) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-}
-
-function Listener(event, handler) {
-  this.event=event;
-  this.handler=handler;
 }
 
 },{}],10:[function(require,module,exports){
@@ -1073,7 +1073,7 @@ module.exports = function(containerId, options) {
 
   //--prototypes & includes--//
   this.log=require("./../../common/mod-log.js");
-  this.EventsManager=require("./dp-eventsmanager.js");
+  this.EventsManager=require("./../../common/mod-eventsmanager.js");
   this.DrawQueue=require("./dp-drawqueue.js");
   this.MessagesBox=require("./dp-messagesbox.js");
   this.InfoBox=require("./dp-infobox.js");
@@ -1630,7 +1630,7 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-log.js":2,"./../../common/mod-optionsmanager.js":3,"./../../common/mod-story.js":4,"./dp-actions.js":5,"./dp-constants.js":6,"./dp-controls.js":7,"./dp-drawqueue.js":8,"./dp-eventsmanager.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-subtitlebox.js":14}],17:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":6,"./dp-constants.js":7,"./dp-controls.js":8,"./dp-drawqueue.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-subtitlebox.js":14}],17:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 

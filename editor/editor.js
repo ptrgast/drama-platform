@@ -101,6 +101,57 @@ function getContentType(file) {
 }
 
 },{}],2:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj=this;
+  this.listeners=[];
+
+  this.addListener=function(event,handler) {
+    //check that this handler is not already registered
+    if(this._findListener(event,handler)<0) {
+      var listener=new Listener(event,handler);
+      this.listeners.push(listener);
+    }
+  }
+
+  this.removeListener=function(event,handler) {
+    var i=this._findListener(event,handler);
+    if(i>=0) {
+      this.listeners.splice(i,1);
+    }
+  }
+
+  this.callHandlers=function(event,params) {
+    for(var i=0;i<this.listeners.length;i++) {
+      var currentListener=this.listeners[i];
+      if(currentListener.event==event) {
+        if(typeof params=="undefined") {
+          currentListener.handler();
+        } else {
+          currentListener.handler(params);
+        }
+      }
+    }
+  }
+
+  this._findListener=function(event,handler) {
+    for(var i=0;i<this.listeners.length;i++) {
+      var currentListener=this.listeners[i];
+      if(currentListener.handler==handler && currentListener.event==event) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+}
+
+function Listener(event, handler) {
+  this.event=event;
+  this.handler=handler;
+}
+
+},{}],3:[function(require,module,exports){
 //Log
 module.exports = {
   ALL:0,
@@ -158,7 +209,7 @@ module.exports = {
   }
 };
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 module.exports = function(defaultOptions, userOptions) {
 
   var thisobj = this;
@@ -178,7 +229,7 @@ module.exports = function(defaultOptions, userOptions) {
 
 }
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 module.exports = function() {
   var thisobj=this;
   this.STATUS_NOT_LOADED=0;
@@ -453,7 +504,7 @@ function MovableObject() {
   }
 }
 
-},{"./mod-audiotrack.js":1,"./mod-log.js":2}],5:[function(require,module,exports){
+},{"./mod-audiotrack.js":1,"./mod-log.js":3}],6:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 
@@ -468,7 +519,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.6.1";
+  this.EDITOR_VERSION = "0.7";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
@@ -491,7 +542,7 @@ drama.Editor = function(containerId) {
 
     thisobj._initToolbar();
 
-    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 5px; overflow: hidden;';
+    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 3px; overflow: hidden;';
     var mainStyle = layoutStyle + "background-color:#000;";
     var bottomStyle = layoutStyle + "background-color:#222;";
     $("#"+containerId).w2layout({
@@ -501,7 +552,7 @@ drama.Editor = function(containerId) {
         { type: 'top', size: 30, resizable: false, style: layoutStyle, toolbar: thisobj.toolbar },
         { type: 'main', style: mainStyle, content: thisobj.player.playerElement},
         { type: 'right', size: 300, resizable: true, style: layoutStyle, content: "right content" },
-        { type: 'bottom', size: 300, resizable: true, style: bottomStyle, content: thisobj.timelineEditor.container }
+        { type: 'bottom', size: 300, resizable: true, style: bottomStyle, content: thisobj.timelineEditor._container }
       ],
       onResize: thisobj._layoutResizeHandler
     });
@@ -558,34 +609,22 @@ drama.Editor = function(containerId) {
   this._storyLoaded = function() {
     var story = this.player.story;
 
-    //create tracks
-    for(var i=0;i<story.actors.length;i++) {
-      var current = story.actors[i];
-      current._editorTrack = new this.timelineEditor.Track();
-      this.timelineEditor.addTrack(current._editorTrack);
-    }
-
-    //set timeline duration (this must be done after the track creation
-    //otherwise we will have to set the duration of each track separately)
-    this.timelineEditor.setDuration(story.getDuration());
-
-    //add events to tracks
-    for(var i=0;i<story.timeline.length;i++) {
-      var currentEvent = story.timeline[i];
-      if(typeof currentEvent.actor!="undefined") {
-        //we 've got an actor here
-        var currentActor = story.actors[currentEvent.index];
-        var trackItem = new this.timelineEditor.TrackItem(currentActor._editorTrack);
-        trackItem.setName(currentActor.name+" ["+currentEvent.action+"]");
-        trackItem.setTime(currentEvent.time);
-        if(currentEvent.action!=null && typeof currentEvent.action=="object" && typeof currentEvent.action.params=="object" && typeof currentEvent.action.params.tt=="number") {
-          var duration = currentEvent.action.params.tt-currentEvent.time;
-          trackItem.setDuration(duration);
-        }
-        currentActor._editorTrack.addItem(trackItem);
+    for(var i=0; i<story.timeline.length; i++) {
+      var name = story.timeline[i].actor || story.timeline[i].audiotrack;
+      if(story.timeline[i].subtitle!=null) {name = "subtitle";}
+      var endTime = null;
+      if(
+        story.timeline[i].action!=null &&
+        typeof story.timeline[i].action=="object" &&
+        story.timeline[i].action.params!=null &&
+        typeof story.timeline[i].action.params=="object" &&
+        typeof story.timeline[i].action.params.tt=="number"
+      ) {
+        endTime = story.timeline[i].time+story.timeline[i].action.params.tt;
       }
-      //console.log(current.actor);
+      this.timelineEditor.addItem(i, name, name, story.timeline[i].time, endTime);
     }
+    this.timelineEditor._render();
 
     //refresh the subtitles menu
     var subtitlesMenuItems = [];
@@ -624,13 +663,14 @@ drama.Editor = function(containerId) {
   //initialize
   $(window).load(this._init);
 
-  this.timelineEditor.onusertime = function(newTime) {
+  this._onUserTime = function(newTime) {
     thisobj.player.seek(newTime);
   }
+  this.timelineEditor.eventsManager.addListener("currenttimechange", this._onUserTime);
 
 }
 
-},{"./../common/mod-log.js":2,"./../player/modules/player-main.js":23,"./storymanager/storymanager.js":6,"./timeline/timeline.js":7}],6:[function(require,module,exports){
+},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":22,"./storymanager/storymanager.js":7,"./timeline/timeline.js":8}],7:[function(require,module,exports){
 module.exports = function() {
   var thisobj = this;
 
@@ -641,516 +681,567 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-log.js":2}],7:[function(require,module,exports){
-module.exports = function() {
+},{"./../../common/mod-log.js":3}],8:[function(require,module,exports){
+module.exports = function(container) {
+
   var thisobj = this;
 
-  //prototypes & includes
-  this.log = require("./../../common/mod-log.js");
-  this.Track = require("./tm-track.js");
-  this.TrackItem = require("./tm-trackitem.js");
-  this.TimeHandle = require("./tm-timehandle.js");
-  this.Player = require("./../../player/modules/player-main.js");
+  //--prototypes & includes--//
 
-  //--variables--//
-  this._logName = "Timeline";
-  this.scale = 1;
-  this.previousScale = this.scale;
-  this.scaleIndex = 0;
-  this.duration = 10000;
-  this.time = 0;
-  this.tracks = [];
-  this.timeHandle = null;
+  this._EventUI = require("./tm-eventui.js");
+  this._TimeIndicator = require("./tm-timeindicator.js");
+  this._EventsManager = require("./../../common/mod-eventsmanager.js");
 
-  //--elements--//
-  //main container
-  this.container = document.createElement("div");
-  this.container.className = "drama-timeline-editor";
-  this.container.style.cssText = "height:100%;"
-  //time container
-  this.timeContainer = document.createElement("div");
-  this.timeContainer.className = "time-labels";
-  this.timeContainer.style.cssText = "position:absolute;left:0;top:0;margin-left:5px;width:100%;z-index:2";
-  this.container.appendChild(this.timeContainer);
-  //scrollable area container
-  this.scrollableContainer = document.createElement("div");
-  this.scrollableContainer.className = "scrollable-area";
-  this.scrollableContainer.style.cssText = "position:relative;width:100%;height:100%;margin-top:1.2em;overflow:scroll;"  ;
-  this.container.appendChild(this.scrollableContainer);
-  //grid container
-  this.gridContainer = document.createElement("div");
-  this.gridContainer.className = "grid";
-  this.gridContainer.style.cssText = "position:absolute;width:100%;height:100%;";
-  this.scrollableContainer.appendChild(this.gridContainer);
-  //tracks container
-  this.tracksContainer = document.createElement("div");
-  this.tracksContainer.className = "tracks";
-  this.tracksContainer.style.cssText = "position:absolute;top:0px;padding-top:2em;width:100%;height:100%;";
-  this.scrollableContainer.appendChild(this.tracksContainer);
+  //--Variables--//
 
-  //--functions--//
-  this.setScale = function(scale) {
-    this.scale = scale;
-    this.timeHandle.setScale(scale);
-    if(this.scale!=this.previousScale) {
-      this._refreshGrid();
-      this._refreshTracks();
-      thisobj.scrollableContainer.scrollLeft = thisobj.scrollableContainer.scrollLeft*(this.scale/this.previousScale);
-    }
-    this.previousScale = scale;
+  this._items = [];
+  this._viewportStartTime = 0;
+  this._viewportResolution = 2; //msec per pixel
+  this._viewportScale = 1.0;
+  this._groupLabelsWidth = 120;
+  this._currentTime = 0;
+  this.eventsManager=new this._EventsManager();
+
+  //--Elements--//
+
+  this._container = (container==null || typeof container=="undefined")?document.createElement("div"):container;
+  this._container.className = "timeline-editor";
+  this._container.style.cssText = "position:relative;overflow:hidden"+
+                                  "-webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;";
+  //container > guides
+  this._guidesContainer = document.createElement("div");
+  this._guidesContainer.className = "guides-container";
+  this._guidesContainer.style.cssText = "position:absolute;overflow:hidden;top:0;left:0;width:100%;height:100%;margin-left:"+this._groupLabelsWidth+"px;user-select:none";
+  this._container.appendChild(this._guidesContainer);
+  //container > events
+  this._eventsContainer = document.createElement("div");
+  this._eventsContainer.style.cssText = "position:absolute;overflow:hidden;margin-top:1.5em;top:0left:0;width:100%;padding-left:"+this._groupLabelsWidth+"px;user-select:none";
+  this._container.appendChild(this._eventsContainer);
+  //container > groups cover
+  this._groupsCover = document.createElement("div");
+  this._groupsCover.className = "groups-cover";
+  this._groupsCover.style.cssText = "position:absolute;top:0;left:0;width:"+this._groupLabelsWidth+"px;min-height:100%;z-index:4";
+  this._container.appendChild(this._groupsCover);
+  //container > time indicator
+  this._timeIndicator = new this._TimeIndicator(this);
+  this._container.appendChild(this._timeIndicator._container);
+
+
+  //--Functions--//
+
+  this.getContainer = function() {
+    return this._container;
   }
 
-  this.setDuration = function(duration) {
-    this.duration = duration;
-    this._refreshGrid();
-    this._refreshTracks();
+  this.addItem = function(id, group, name, startTime, endTime) {
+    if(typeof id=="undefined") {id = null;}
+    if(typeof group=="undefined") {group = null;}
+    if(typeof name=="undefined") {name = null;}
+    if(typeof startTime=="undefined") {startTime = null;}
+    if(typeof endTime=="undefined") {endTime = null;}
+    var newItem = {};
+    newItem.id = id;
+    newItem.group = group;
+    newItem.name = name;
+    newItem.startTime = startTime;
+    newItem.endTime = endTime;
+    this._items.push(newItem);
   }
 
-  this.setCurrentTime = function(time) {
-    this.time = time;
-    this.timeHandle.setCurrentTime(time);
-  }
-
-  this._userTime = function(time) {
-    this.time = time;
-    this.onusertime(time);
-  }
-
-  this.onusertime = function(time) {}
-
-  this._refreshGrid = function() {
-    this.timeContainer.innerHTML = "";
-    this.gridContainer.innerHTML = "";
-    var period = 100;
-    if(this.scale<0.05) {period = 1000;}
-    else if(this.scale<0.1) {period = 500;}
-    else if(this.scale<0.5) {period = 200;}
-    else if(this.scale<0.8) {period = 100;}
-    else if(this.scale<1.25) {period = 50;}
-    else if(this.scale<1.6) {period = 10;}
-    else {period = 5;}
-
-    var scaledDuration = this.duration*this.scale;
-    var scaledPeriod = period*this.scale;
-    var totalBars = Math.ceil(scaledDuration/scaledPeriod);
-    for(var i=0;i<totalBars;i++) {
-      //lines
-      var line = document.createElement("div");
-      line.style.cssText = "position:absolute;background-color:#333;width:1px;min-height:100%;top:0px;";
-      line.style.left = i*scaledPeriod+"px";
-      //labels
-      if(i%5==0) {
-        line.style.backgroundColor = "#633";
-        var label = document.createElement("div");
-        label.style.cssText = "position:absolute;top:0px;padding:2px 0;z-index:1;color:#777;";
-        label.style.left = 2+i*scaledPeriod+"px";
-        label.innerHTML = (i*period)|0;
-        this.timeContainer.appendChild(label);
-      }
-      this.gridContainer.appendChild(line);
-    }
-  }
-
-  this._refreshTracks = function() {
-    for(var i=0; i<this.tracks.length;i++) {
-      this.tracks[i].setScale(this.scale, false); //False means don't refresh. The track will be refreshed with the setDuration
-      this.tracks[i].setDuration(this.duration);
-    }
-  }
-
-  this._reheightGrid = function() {
-    var total = 0;
-    for(var i=0;i<this.tracks.length;i++) {
-      var currentHeight = this.tracks[i]._getTotalLevels()*(this.tracks[i].itemHeight+this.tracks[i].itemVerticalMargin);
-      total += currentHeight;
-    }
-    this.gridContainer.style.height = total+"em";
-  }
-
-  this.addTrack = function(track) {
-    track.ontrackchange = function() {thisobj._reheightGrid();}
-    this.tracks.push(track);
-    this.tracksContainer.appendChild(track.container);
-    track.setScale(this.scale);
-  }
-
-  this._setScaleIndex = function(newIndex) {
-    this.scaleIndex = newIndex;
-    if(this.scaleIndex>0.99) {this.scaleIndex = 0.99;}
-    if(this.scaleIndex<-0.99) {this.scaleIndex = -0.99;}
-    var newScale = (this.scaleIndex<1?this.scaleIndex+1:this.scaleIndex*2+1);
-    this.setScale(newScale);
-  }
-
-  //--initialize--//
-  this.timeHandle = new this.TimeHandle(this);
-
-  this._setScaleIndex(-0.09*8);
-
-  this.scrollableContainer.onscroll = function(event) {
-    //console.log(event);
-    thisobj.timeContainer.style.left = -thisobj.scrollableContainer.scrollLeft+"px"
-    thisobj.timeHandle.setHorizontalOffset(thisobj.scrollableContainer.scrollLeft);
-  }
-
-  document.onkeydown = function(event) {
-    // console.log(event.keyCode);
-    if(event.keyCode==107) {
-      //plus
-      thisobj._setScaleIndex(thisobj.scaleIndex+0.09);
-    } else if(event.keyCode==109) {
-      //minus
-      thisobj._setScaleIndex(thisobj.scaleIndex-0.09);
-    }
-  }
-
-}
-
-},{"./../../common/mod-log.js":2,"./../../player/modules/player-main.js":23,"./tm-timehandle.js":9,"./tm-track.js":10,"./tm-trackitem.js":11}],8:[function(require,module,exports){
-module.exports = function(movableElement, parentElement, button) {
-  var thisobj = this;
-
-  //--prototypes--//
-  this.log = require("./../../common/mod-log.js");
-
-  //--variables--//
-  this._logName = "DragHelper";
-  this.movableElement = movableElement;
-  this.parentElement = parentElement;
-  this.acceptableButton = button;
-  this.dragStart = null;
-
-  //--value checks--//
-  if(this.movableElement==null) {this.log.error("The 'movableElement' is missing!", this);}
-  if(this.parentElement==null) {this.log.error("The 'parentElement' is missing!", this);}
-  if(this.acceptableButton==null) {this.acceptableButton=0;}
-
-  //--functions--//
-  this.movableMouseDown = function(event) {
-    if(event.button==thisobj.acceptableButton) {
-      thisobj.dragStart = event.clientX;
-      var allow = thisobj.onDragStart();
-      if(typeof allow!="undefined" && allow==false) {
-        //cancel drag
-        thisobj.dragStart = null;
-      }
-    }
-  }
-
-  this.parentMouseMove = function(event) {
-    if(thisobj.dragStart!=null) {
-      var distance = event.clientX - thisobj.dragStart;
-      thisobj.onDrag(distance);
-    }
-  }
-
-  this.mouseUp = function(event) {
-    if(thisobj.dragStart != null) {
-      thisobj.dragStart = null;
-      thisobj.onDragEnd();
-    }
-  }
-
-  this.onDragStart = function() {};
-  this.onDrag = function(distance) {};
-  this.onDragEnd = function() {};
-
-  //--register listeners--//
-  this.movableElement.addEventListener("mousedown", this.movableMouseDown);
-  this.parentElement.addEventListener("mousemove", this.parentMouseMove);
-  this.movableElement.addEventListener("mouseup", this.mouseUp);
-  this.parentElement.addEventListener("mouseup", this.mouseUp);
-  document.addEventListener("mouseup", this.mouseUp);
-
-}
-
-},{"./../../common/mod-log.js":2}],9:[function(require,module,exports){
-module.exports = function(timeline) {
-  var thisobj = this;
-
-  //prototypes & includes
-  this.log = require("./../../common/mod-log.js");
-  this.DragHelper = require("./tm-draghelper.js");
-
-  //--variables--//
-  this._logName = "TimeHandle";
-  this.scale = 1;
-  this.time = 0;
-  this.timeline = timeline;
-  this.dragStart = null;
-  this.dragHelper = null;
-
-  //--elements--//
-  this.container = document.createElement("div");
-  this.container.className = "time-handle";
-  this.container.style.cssText = "position:absolute;top:0;left:0;width:3px;height:100%;background-color:#b51;z-index:3;margin-left:4px;box-shadow:-2px 2px 2px rgba(0,0,0,.5);cursor:ew-resize;";
-
-  //--functions--//
-  this.setCurrentTime = function(time) {
-    this.time = time;
-    this.container.style.left = (this.time*this.scale-this.timeline.scrollableContainer.scrollLeft)+"px";
-  }
-
-  this.setScale = function(scale) {
-      this.scale = scale;
-      this.setCurrentTime(this.time);
-  }
-
-  this.setHorizontalOffset = function(offset) {
-    this.container.style.left = (this.time*this.timeline.scale-offset)+"px";
-  }
-
-  //--initialize--//
-  this.timeline.container.appendChild(this.container);
-
-  this.dragHelper = new this.DragHelper(this.container, this.timeline.container, 0);
-  this.dragHelper.onDragStart = function() {
-    thisobj.dragStart = thisobj.time;
-  }
-  this.dragHelper.onDrag = function(distance) {
-    var newTime = thisobj.dragStart+distance/thisobj.timeline.scale;
-    thisobj.setCurrentTime(newTime);
-    //thisobj.dragStart.style.left = distance+"px";
-  }
-  this.dragHelper.onDragEnd = function() {
-    thisobj.timeline._userTime(thisobj.time);
-  }
-
-}
-
-},{"./../../common/mod-log.js":2,"./tm-draghelper.js":8}],10:[function(require,module,exports){
-module.exports = function() {
-  var thisobj = this;
-
-  //--prototypes--//
-  this.log = require("./../../common/mod-log.js");
-  this.TrackItem = require("./tm-trackitem.js");
-
-  //--variables--//
-  this._logName = "Track";
-  this.scale = 1;
-  this.duration = 10000; //msec
-  this.trackItems = [];
-  this.itemHeight = new this.TrackItem()._height;
-  this.itemVerticalMargin = 0.2;
-
-  //--elements--//
-  this.container = document.createElement("div");
-  this.container.className = "track";
-  this.container.style.cssText = "position:relative;min-height:1.5em;border-bottom:1px dashed rgba(255,255,255,0.05)";
-  this.container.style.cssText += "-webkit-touch-callout:none;-webkit-user-select:none;-khtml-user-select:none;-moz-user-select:none;-ms-user-select:none;";
-
-  //--functions--//
-  this.setScale = function(scale, refresh) {
-    this.scale = scale;
-    if(refresh!=false) {this._refresh();}
-  }
-
-  this.setDuration = function(duration, refresh) {
-    this.duration = duration;
-    if(refresh!=false) {this._refresh();}
-  }
-
-  this.addItem = function(item) {
-    if(!(item instanceof this.TrackItem)) {this.log.error("Invalid track item!", this);}
-    this.trackItems.push(item);
-    this.container.appendChild(item.container);
-    item.setScale(this.scale);
-    this._sortItemsByStartTime();
-    this._arrangeItems();
-    this.ontrackchange();
-  }
-
-  this._sortItemsByStartTime = function() {
-    this.trackItems.sort(function(a,b) {
-      return a.time-b.time;
-    });
-  }
-
-  //returns the overlapping region between two items
-  this._overlap = function(item1, item2) {
-    var startingLast = (item1.time>item2.time)?item1:item2;
-    var endingFirst = (item1.getEndTime()<item2.getEndTime())?item1:item2;
-
-    var overlap = {
-      start:startingLast.time,
-      end:endingFirst.getEndTime()
-    };
-    //console.log(item1._toString()+" "+item2._toString()+" ovlp["+overlap.start+","+overlap.end+"]");
-    if(overlap.end-overlap.start>=0) {return overlap;}
-    else {return null;}
-  }
-
-  this._calculateItemLevel = function(item) {
-    var currentLevel=0;
-    for(var i=0;i<this.trackItems.length;i++) {
-      var currentItem = this.trackItems[i];
-      if(currentItem!=item) {
-        if(currentItem._level==currentLevel && this._overlap(currentItem,item)!=null) {
-          currentLevel++;
-          i=0;
+  this._getGroups = function() {
+    var groups = [];
+    for(var i=0; i<this._items.length; i++) {
+      var alreadyIn = false;
+      for(var g=0; g<groups.length; g++) {
+        if(this._items[i].group==groups[g]) {
+          alreadyIn = true;
+          break;
         }
       }
+      if(!alreadyIn) {groups.push(this._items[i].group);}
     }
-    item._level = currentLevel;
+    return groups;
   }
 
-  this._getTotalLevels = function() {
-    var max=0;
-    for(var i=0;i<this.trackItems.length;i++) {
-      var currentItem = this.trackItems[i];
-      max = Math.max(max, currentItem._level);
+  this._getGroupItems = function(group) {
+    var groupItems = [];
+    for(var i=0; i<this._items.length; i++) {
+      if(this._items[i].group==group) {
+        groupItems.push(this._items[i]);
+      }
     }
-    return max+1;
+    return groupItems;
   }
 
-  this._arrangeItems = function() {
-    //reset levels
-    for(var i=0;i<this.trackItems.length;i++) {this.trackItems[i]._level = -1;}
-    for(var i=0;i<this.trackItems.length;i++) {
-      var item = this.trackItems[i];
-      this._calculateItemLevel(item);
-      //console.log("level for "+item._toString()+" > "+item._level);
-      item.container.style.top = (this.itemHeight+this.itemVerticalMargin)*item._level+"em";
+  this._getGroupItemsInPeriod = function(group, startTime, endTime) {
+    var passZone = 100; //20ms
+    var groupItems = this._getGroupItems(group);
+    var output = [];
+    for(var i=0;i<groupItems.length;i++) {
+      var eventStartTime = (groupItems[i].startTime)!=null?groupItems[i].startTime:0;
+      var eventEndTime = (groupItems[i].endTime)!=null?groupItems[i].endTime:eventStartTime;
+      if(
+          (eventStartTime>=startTime-passZone && eventStartTime<=endTime+passZone) ||
+          (eventEndTime>=startTime-passZone && eventEndTime<=endTime+passZone) ||
+          (eventStartTime<=startTime && eventEndTime>=endTime)
+        ) {
+        //console.log("Adding item "+i+" with startTime:"+eventStartTime+" and endTime:"+eventEndTime+" | "+startTime+"-"+endTime);
+        output.push(groupItems[i]);
+      }
     }
-    //resize the track
-    var trackHeight = this._getTotalLevels()*(this.itemHeight+this.itemVerticalMargin);
-    this.container.style.height = trackHeight+"em";
+    return output;
   }
 
-  this._refresh = function() {
-    this.container.style.width = this.duration*this.scale+"px";
-    for(var i=0;i<this.trackItems.length;i++) {
-      this.trackItems[i].setScale(this.scale);
+  this._getGuidesPeriod = function(timeRange) {
+    var ranges = [200, 1000, 2000, 10000, 20000, 100000];
+    var periods = [10, 50, 100, 500, 1000, 5000, 10000];
+    for(var i=0; i<ranges.length; i++) {
+      if(timeRange<=ranges[i]) {return periods[i];}
     }
+    //The given range is above the predefined ranges so return the last period
+    return periods[periods.length-1];
   }
 
-  this.ontrackchange = function() {}
+  this._timeToX = function(time) {
+    return (time-this._viewportStartTime)/this._viewportResolution*this._viewportScale;
+  }
 
-  //--initialization--//
-  this._refresh();
+  this._dragStartTime = 0;
+  this._dragStartY = 0;
+  this._onDrag = function(dragEvent) {
+      //console.log(dragEvent.dx+","+dragEvent.dy+" "+dragEvent.ended);
+      if(dragEvent.started) {
+        this._dragStartTime = this._viewportStartTime;
+        var top = this._eventsContainer.style.top;
+        this._dragStartY = top.substr(-2)=="px"?top.substr(0,top.length-2)*1:0;
+      } else if(dragEvent.ended) {
+
+      } else {
+        this._viewportStartTime = this._dragStartTime-(dragEvent.dx*this._viewportResolution/this._viewportScale);
+        if(this._viewportStartTime<0) {this._viewportStartTime=0;}
+        this._render();
+
+        var newY = this._dragStartY+dragEvent.dy;
+        if(newY>0) {newY = 0;}
+        this._eventsContainer.style.top = newY+"px";
+      }
+      // console.log(dragEvent.dy, newY, top);
+  }
+  new _TimelineDragHelper(this._container, function(dragEvent){thisobj._onDrag(dragEvent);});
+
+  this._onWheel = function(wheelEvent) {
+    if(wheelEvent.deltaY>0) { //zoom out
+      this._viewportScale -= 0.05;
+    } else { //zoom in
+      this._viewportScale += 0.05;
+    }
+    if(this._viewportScale<0.05) {this._viewportScale=0.05};
+    this._render();
+  }
+  this._container.addEventListener("wheel", function(wheelEvent) {thisobj._onWheel(wheelEvent)});
+
+  this._UIItems = [];
+  this._render = function() {
+    //clear previous
+    this._guidesContainer.innerHTML = "";
+    this._eventsContainer.innerHTML = "";
+    for(var i=0; i<this._UIItems.length; i++) {this._UIItems[i]._destruct();}
+    this.UIITems = [];
+
+    //variables
+    var viewportWidth = this._eventsContainer.clientWidth;
+    var startTime = this._viewportStartTime;
+    var endTime = startTime+(viewportWidth*this._viewportResolution)/this._viewportScale;
+    var timeRange = endTime-startTime;
+    var groups = this._getGroups();
+    var guidesPeriod = this._getGuidesPeriod(timeRange);
+    var guidesStart = startTime-startTime%guidesPeriod;
+    var guidesOffset = -(startTime%guidesPeriod)/this._viewportResolution*this._viewportScale;
+    // console.log("Rendering from "+startTime+" to "+endTime+" (range: "+timeRange+") - "+groups.length+" groups");
+
+    //add guides
+    var currentGuideTime = guidesStart;
+    while(currentGuideTime<endTime) {
+      var x = this._timeToX(currentGuideTime)+"px";
+      //guide
+      var guideElem = document.createElement("div");
+      guideElem.className = "guide";
+      guideElem.style.cssText = "position:absolute;width:1px;top:0px;bottom:0px";
+      guideElem.style.left = x;
+      this._guidesContainer.appendChild(guideElem);
+      //label
+      var labelElem = document.createElement("div");
+      labelElem.className = "label";
+      labelElem.style.cssText = "position:absolute;top:0px;";
+      labelElem.style.left = x;
+      var labelTime = currentGuideTime;
+      if(labelTime<1000) {labelTime = labelTime+"ms";}
+      else {labelTime = ((labelTime/1000)*10|0)/10+"sec"}
+      labelElem.innerHTML = labelTime;
+      this._guidesContainer.appendChild(labelElem);
+
+      currentGuideTime += guidesPeriod;
+    }
+
+    //add groups
+    for(var i=0;i<groups.length;i++) {
+      var groupElem = document.createElement("div");
+      groupElem.className = "group";
+      groupElem.style.cssText = "position:relative;min-height:1em";
+
+      //add group label
+      var groupLabel = document.createElement("div");
+      groupLabel.className = "group-label";
+      groupLabel.style.cssText = "position:absolute;top:0;left:"+(-this._groupLabelsWidth)+"px;width:"+this._groupLabelsWidth+"px;z-index:5";
+      groupLabel.innerHTML = "&nbsp;&nbsp;"+groups[i];
+      groupElem.appendChild(groupLabel);
+
+      //add events
+      var groupEvents = this._getGroupItemsInPeriod(groups[i], startTime, endTime);
+      for(var e=0; e<groupEvents.length; e++) {
+        var currentEvent = groupEvents[e];
+        var eventUI = new thisobj._EventUI(thisobj, currentEvent, groups[i]+" ("+currentEvent.startTime+"ms)");
+        this._UIItems.push(eventUI);
+        groupElem.appendChild(eventUI._container);
+      }
+
+      this._eventsContainer.appendChild(groupElem);
+    }
+
+    //refresh the time indicator
+    this._timeIndicator.refresh();
+
+  }
+
+  this.setCurrentTime = function(newTime) {
+    this._currentTime = newTime;
+    var viewportWidth = this._eventsContainer.clientWidth;
+    var startTime = this._viewportStartTime;
+    var endTime = startTime+(viewportWidth*this._viewportResolution)/this._viewportScale;
+    var groupLabelsOffset = this._groupLabelsWidth*this._viewportResolution/this._viewportScale
+    if(this._currentTime+groupLabelsOffset>endTime || this._currentTime<startTime) {
+      this._viewportStartTime = this._currentTime;
+      this._render();
+    }
+    this._timeIndicator.refresh();
+  }
+
+  this._onTimeIndicatorDrag = function() {
+    this.eventsManager.callHandlers("currenttimechange", this._currentTime);
+  }
+  this._timeIndicator.onDrag = function() {thisobj._onTimeIndicatorDrag();}
+
 }
 
-},{"./../../common/mod-log.js":2,"./tm-trackitem.js":11}],11:[function(require,module,exports){
-module.exports = function(track) {
+function _TimelineDragHelper(element, onDrag) {
+
+  //--Variables--//
+  var thisobj = this;
+  this._startEvent = null;
+
+  element.addEventListener("mousedown", function(event){thisobj._onMouseDown(event);});
+  element.addEventListener("mousemove", function(event){thisobj._onMouseMove(event);});
+  element.addEventListener("mouseup", function(event){thisobj._onMouseUp(event);});
+
+  //--Functions--//
+
+  this._onMouseDown = function(event) {
+    event.stopPropagation();
+    this._startEvent = event;
+    var dragEvent = {
+      dx:0,
+      dy:0,
+      started:true,
+      ended:false
+    };
+    onDrag(dragEvent);
+  }
+
+  this._onMouseMove = function(event) {
+    if(this._startEvent!=null && event.buttons==1) {
+      event.stopPropagation();
+      var dragEvent = {
+        dx:event.clientX-this._startEvent.clientX,
+        dy:event.clientY-this._startEvent.clientY,
+        started:false,
+        ended:false
+      };
+      onDrag(dragEvent);
+    }
+  }
+
+  this._onMouseUp = function(event) {
+    if(this._startEvent!=null) {
+      event.stopPropagation();
+      this._startEvent = null;
+      var dragEvent = {
+        dx:0,
+        dy:0,
+        started:false,
+        ended:true
+      };
+      onDrag(dragEvent);
+    }
+  }
+
+}
+
+},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":10,"./tm-timeindicator.js":11}],9:[function(require,module,exports){
+module.exports = function(draggable, container, onDrag) {
+
+  //--Variables--//
+
+  var thisobj = this;
+  this._startEvent = null;
+
+  //--Init--//
+
+  this._mouseDownWrapper = function(event){thisobj._onMouseDown(event);}
+  this._mouseMoveWrapper = function(event){thisobj._onMouseMove(event);}
+  this._mouseUpWrapper = function(event){thisobj._onMouseUp(event);}
+  draggable.addEventListener("mousedown", this._mouseDownWrapper);
+  container.addEventListener("mousemove", this._mouseMoveWrapper);
+  container.addEventListener("mouseup", this._mouseUpWrapper);
+
+  //--Functions--//
+
+  this._destruct = function() {
+    draggable.removeEventListener("mousedown", this._mouseDownWrapper);
+    container.removeEventListener("mousemove", this._mouseMoveWrapper);
+    container.removeEventListener("mouseup", this._mouseUpWrapper);
+  }
+
+  this._onMouseDown = function(event) {
+    event.stopPropagation();
+    this._startEvent = event;
+    var dragEvent = {
+      dx:0,
+      dy:0,
+      started:true,
+      ended:false
+    };
+    onDrag(dragEvent);
+  }
+
+  this._onMouseMove = function(event) {
+    if(this._startEvent!=null && event.buttons==1) {
+      event.stopPropagation();
+      var dragEvent = {
+        dx:event.clientX-this._startEvent.clientX,
+        dy:event.clientY-this._startEvent.clientY,
+        started:false,
+        ended:false
+      };
+      onDrag(dragEvent);
+    }
+  }
+
+  this._onMouseUp = function(event) {
+    if(this._startEvent!=null) {
+      event.stopPropagation();
+      this._startEvent = null;
+      var dragEvent = {
+        dx:0,
+        dy:0,
+        started:false,
+        ended:true
+      };
+      onDrag(dragEvent);
+    }
+  }
+
+}
+
+},{}],10:[function(require,module,exports){
+module.exports = function(timeline, timelineEvent, label) {
+
   var thisobj = this;
 
-  //--prototypes--//
-  this.log = require("./../../common/mod-log.js");
-  this.DragHelper = require("./tm-draghelper.js");
+  //--Prototypes & Includes--//
 
-  //--variables--//
-  this._logName = "TrackItem";
-  this.track = track;
-  this.scale = 1;
-  this.time = 0;
-  this.duration = 0;
-  this.name = "";
-  this._level = -1; //determines the y position of the item on the track
-  this._height = 1.5;
+  this._DragInParentHelper = require("./tm-draghelper.js");
 
-  //--elements--//
-  this.container = document.createElement("div");
-  this.container.className = "item";
-  this.container.style.cssText = "position:absolute;background-color:#AADDCF;cursor:move;";
-  this.container.style.height = this._height+"em";
-  this.container.style.lineHeight = this._height+"em";
-  this.trackLabel = document.createElement("div");
-  this.trackLabel.style.cssText = "position:absolute;background-color:rgba(170,221,207,0.4);padding:0 0.5em;white-space:nowrap;";
-  this.trackLabel.textContent = this.name;
-  this.container.appendChild(this.trackLabel);
-  this.leftHandle = document.createElement("div");
-  this.leftHandle.style.cssText = "position:absolute;left:-2px;top:0;width:4px;height:100%;border:1px solid #87A99F;background-color:#99CCBE;cursor: ew-resize;z-index:2";
-  this.container.appendChild(this.leftHandle);
-  this.rightHandle = document.createElement("div");
-  this.rightHandle.style.cssText = "position:absolute;right:-2px;top:0;width:4px;height:100%;border:1px solid #87A99F;background-color:#99CCBE;cursor: ew-resize;z-index:2";
-  this.container.appendChild(this.rightHandle);
+  //--Variables--//
 
-  //--click & drag--//
-  this.dragStartTime = null;
-  this.dragStartDuration = null;
-  this.leftHandleDragHelper = null;
-  this.rightHandleDragHelper = null;
-  this.moveDragHelper = null;
+  this._editable = true;
+  this._timelineEvent = timelineEvent;
 
-  if(this.track!=null) {
-    this.leftHandleDragHelper = new this.DragHelper(this.leftHandle, this.track.container);
-    this.rightHandleDragHelper = new this.DragHelper(this.rightHandle, this.track.container);
-    this.moveDragHelper = new this.DragHelper(this.container, this.track.container);
+  //--Elements--//
 
-    this.moveDragHelper.onDragStart =
-    this.rightHandleDragHelper.onDragStart =
-    this.leftHandleDragHelper.onDragStart = function() {
-      if(thisobj.dragStartTime!=null || thisobj.dragStartDuration!=null) {return false; /*Already dragging something! Cancel this drag.*/}
-      thisobj.dragStartTime = thisobj.time;
-      thisobj.dragStartDuration = thisobj.duration;
-    }
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "event";
+  this._container.style.position = "relative";
+  this._container.style.marginLeft = timeline._timeToX(timelineEvent.startTime)+"px";
+  //container > label-container
+  this._labelContainer = document.createElement("div");
+  this._labelContainer.style.cssText = "position:relative;z-index:1;padding-left:0.5em";
+  this._container.appendChild(this._labelContainer);
+  //container > label > text-span
+  this._labelElem = document.createElement("div");
+  this._labelElem.className = "label";
+  this._labelElem.style.cssText = "display:inline-block;cursor:move";
+  this._labelElem.innerHTML = label;
+  this._labelContainer.appendChild(this._labelElem);
+  //container > duration
+  this._durationElem = document.createElement("div");
+  this._durationElem.className = "duration";
+  this._container.appendChild(this._durationElem);
+  //container > leftHandle
+  this._leftHandleElem = document.createElement("div");
+  this._leftHandleElem.className = "handle";
+  this._leftHandleElem.style.cssText = "position:absolute;width:5px;z-index:2;cursor:ew-resize";
+  this._container.appendChild(this._leftHandleElem);
+  //container > rightHandle
+  this._rightHandleElem = document.createElement("div");
+  this._rightHandleElem.className = "handle";
+  this._rightHandleElem.style.cssText = "position:absolute;width:5px;z-index:2;cursor:ew-resize";
+  this._container.appendChild(this._rightHandleElem);
 
-    this.moveDragHelper.onDragEnd =
-    this.rightHandleDragHelper.onDragEnd =
-    this.leftHandleDragHelper.onDragEnd = function() {
-      thisobj.dragStartTime = null;
-      thisobj.dragStartDuration = null;
-      thisobj.track._sortItemsByStartTime();
-      thisobj.track._arrangeItems();
-    }
+  //--Functions--//
 
-    this.leftHandleDragHelper.onDrag = function(distance) {
-      var newTime = thisobj.dragStartTime+(distance/thisobj.scale);
-      var newDuration = thisobj.dragStartDuration-(distance/thisobj.scale);
-      if(newDuration<0) {newDuration = 0;}
-      thisobj.setDuration(newDuration);
-      thisobj.setTime(newTime);
-    }
+  this._destruct = function() {
+    this._leftHandleDH._destruct();
+    this._rightHandleDH._destruct();
+    this._moveDH._destruct();
+  }
 
-    this.rightHandleDragHelper.onDrag = function(distance) {
-      var newDuration = thisobj.dragStartDuration+(distance/thisobj.scale);
-      if(newDuration<0) {newDuration = 0;}
-      thisobj.setDuration(newDuration);
-    }
-
-    this.moveDragHelper.onDrag = function(distance) {
-      var newTime = thisobj.dragStartTime+(distance/thisobj.scale);
-      thisobj.setTime(newTime);
+  //Start Time
+  this._dragStartTime = 0;
+  this._onLeftHandleDrag = function(dragEvent) {
+    if(dragEvent.started) {
+      this._dragStartTime = this._timelineEvent.startTime;
+    } else if(!dragEvent.ended) {
+      var newStartTime = (dragEvent.dx*timeline._viewportResolution/timeline._viewportScale)|0;
+      if(this._dragStartTime+newStartTime<this._timelineEvent.endTime) {
+        if(this._dragStartTime+newStartTime<0) {
+          this._timelineEvent.startTime = 0;
+        } else {
+          this._timelineEvent.startTime = this._dragStartTime+newStartTime;
+        }
+        this.refresh();
+      }
+    } else {
+      this._dragStartTime = 0;
     }
   }
+  this._leftHandleDH = new this._DragInParentHelper(this._leftHandleElem, timeline._eventsContainer, function(dragEvent) {thisobj._onLeftHandleDrag(dragEvent)});
 
-  //--functions--//
-  this.setScale = function(scale) {
-    this.scale = scale;
-    this._refresh();
+  //End Time
+  this._dragEndTime = 0;
+  this._onRightHandleDrag = function(dragEvent) {
+    if(dragEvent.started) {
+      this._dragEndTime = this._timelineEvent.endTime;
+    } else if(!dragEvent.ended) {
+      var newEndTime = (dragEvent.dx*timeline._viewportResolution/timeline._viewportScale)|0;
+      if(this._dragEndTime+newEndTime>this._timelineEvent.startTime) {
+        this._timelineEvent.endTime = this._dragEndTime+newEndTime;
+        this.refresh();
+      }
+    } else {
+      this._dragEndTime = 0;
+    }
+  }
+  this._rightHandleDH = new this._DragInParentHelper(this._rightHandleElem, timeline._eventsContainer, function(dragEvent) {thisobj._onRightHandleDrag(dragEvent)});
+
+  //Move
+  this._onMoveEvent = function(dragEvent) {
+    if(dragEvent.started) {
+      this._dragStartTime = this._timelineEvent.startTime;
+    } else if(!dragEvent.ended) {
+      var duration = timelineEvent.endTime>timelineEvent.startTime?timelineEvent.endTime-timelineEvent.startTime:0;
+      var newStartTime = (dragEvent.dx*timeline._viewportResolution/timeline._viewportScale)|0;
+      if(this._dragStartTime+newStartTime<0) {
+        this._timelineEvent.startTime = 0;
+        this._timelineEvent.endTime = this._timelineEvent.startTime+duration;
+      } else {
+        this._timelineEvent.startTime = this._dragStartTime+newStartTime;
+        this._timelineEvent.endTime = this._timelineEvent.startTime+duration;
+      }
+        this.refresh();
+    } else {
+      this._dragStartTime = 0;
+    }
+  }
+  this._moveDH = new this._DragInParentHelper(this._labelElem, timeline._eventsContainer, function(dragEvent) {thisobj._onMoveEvent(dragEvent)});
+
+  this.refresh = function() {
+    this._container.style.marginLeft = timeline._timeToX(this._timelineEvent.startTime)+"px";
+    var duration = timelineEvent.endTime>timelineEvent.startTime?timeline._timeToX(timelineEvent.endTime)-timeline._timeToX(timelineEvent.startTime):0;
+    this._durationElem.style.position = "absolute";
+    this._durationElem.style.zIndex = "0";
+    this._durationElem.style.top = "0";
+    this._durationElem.style.bottom = "0";
+    this._durationElem.style.width = duration+"px";
+    //left handle
+    this._leftHandleElem.style.top = "0";
+    this._leftHandleElem.style.bottom = "0";
+    this._leftHandleElem.style.left = "-2px";
+    //right handle
+    this._rightHandleElem.style.top = "0";
+    this._rightHandleElem.style.bottom = "0";
+    this._rightHandleElem.style.left = duration-2+"px";
   }
 
-  this.setName = function(name) {
-    this.name = name;
-    this.trackLabel.textContent = this.name;
-  }
+  this.refresh();
 
-  this.setTime = function(time) {
-    this.time = time*1;
-    this._refresh();
-  }
-
-  this.setDuration = function(duration) {
-    this.duration = duration*1;
-    this._refresh();
-  }
-
-  this.getEndTime = function() {
-    return this.time+this.duration;
-  }
-
-  this._refresh = function() {
-    this.container.style.left = this.time*this.scale+"px";
-    this.container.style.width = this.duration*this.scale+"px";
-  }
-
-  this._toString = function() {
-    return "item["+this.time+","+this.duration+"]";
-  }
 }
 
-},{"./../../common/mod-log.js":2,"./tm-draghelper.js":8}],12:[function(require,module,exports){
+},{"./tm-draghelper.js":9}],11:[function(require,module,exports){
+module.exports = function(timeline) {
+
+  var thisobj = this;
+
+  //--Prototypes & Includes--//
+
+  this._DragInParentHelper = require("./tm-draghelper.js");
+
+  //--Variables--//
+
+  this._timeline = timeline;
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "time-indicator";
+  this._container.style.cssText = "position: absolute; width:3px; height:100%; top:0px; border:1px solid #b55d5d; z-index:3; cursor:ew-resize; box-shadow:-2px 0px 2px rgba(0,0,0,0.5)";
+
+  //--Functions--//
+
+  this._setPosition = function(newTime) {
+    var newPosition = this._timeline._groupLabelsWidth+this._timeline._timeToX(newTime);
+    this._container.style.marginLeft = newPosition+"px";
+  }
+
+  this.refresh = function() {
+    this._setPosition(this._timeline._currentTime);
+  }
+
+  this._dragStartTime = 0;
+  this._lastDragEvent = null;
+  this._onDrag = function(dragEvent) {
+    if(dragEvent.started) {
+      thisobj._dragStartTime = thisobj._timeline._currentTime;
+    } else if(!dragEvent.ended) {
+      var newTime = (dragEvent.dx*thisobj._timeline._viewportResolution/thisobj._timeline._viewportScale)|0
+      thisobj._setPosition(thisobj._dragStartTime+newTime);
+    } else {
+      var newTime = (thisobj._lastDragEvent.dx*thisobj._timeline._viewportResolution/thisobj._timeline._viewportScale)|0
+      thisobj._timeline._currentTime = thisobj._dragStartTime+newTime;
+      thisobj.refresh();
+      thisobj._dragStartTime = 0;
+      thisobj.onDrag();
+    }
+    thisobj._lastDragEvent = dragEvent;
+  }
+  this._dragHelper = new this._DragInParentHelper(this._container, timeline._container, this._onDrag);
+
+  this.onDrag = function() {}
+
+}
+
+},{"./tm-draghelper.js":9}],12:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -1427,7 +1518,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":18,"./dp-volumecontrol.js":22}],15:[function(require,module,exports){
+},{"./dp-languageselector.js":17,"./dp-volumecontrol.js":21}],15:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1463,57 +1554,6 @@ module.exports = function() {
 }
 
 },{}],16:[function(require,module,exports){
-module.exports = function() {
-
-  var thisobj=this;
-  this.listeners=[];
-
-  this.addListener=function(event,handler) {
-    //check that this handler is not already registered
-    if(this._findListener(event,handler)<0) {
-      var listener=new Listener(event,handler);
-      this.listeners.push(listener);
-    }
-  }
-
-  this.removeListener=function(event,handler) {
-    var i=this._findListener(event,handler);
-    if(i>=0) {
-      this.listeners.splice(i,1);
-    }
-  }
-
-  this.callHandlers=function(event,params) {
-    for(var i=0;i<this.listeners.length;i++) {
-      var currentListener=this.listeners[i];
-      if(currentListener.event==event) {
-        if(typeof params=="undefined") {
-          currentListener.handler();
-        } else {
-          currentListener.handler(params);
-        }
-      }
-    }
-  }
-
-  this._findListener=function(event,handler) {
-    for(var i=0;i<this.listeners.length;i++) {
-      var currentListener=this.listeners[i];
-      if(currentListener.handler==handler && currentListener.event==event) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-}
-
-function Listener(event, handler) {
-  this.event=event;
-  this.handler=handler;
-}
-
-},{}],17:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -1570,7 +1610,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],18:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1601,7 +1641,7 @@ module.exports = function() {
 
 }
 
-},{}],19:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -1631,7 +1671,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],20:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -1664,7 +1704,7 @@ module.exports={
 
 };
 
-},{}],21:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -1693,7 +1733,7 @@ module.exports = function() {
 	}
 }
 
-},{}],22:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -1754,7 +1794,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],23:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -1770,7 +1810,7 @@ module.exports = function(containerId, options) {
 
   //--prototypes & includes--//
   this.log=require("./../../common/mod-log.js");
-  this.EventsManager=require("./dp-eventsmanager.js");
+  this.EventsManager=require("./../../common/mod-eventsmanager.js");
   this.DrawQueue=require("./dp-drawqueue.js");
   this.MessagesBox=require("./dp-messagesbox.js");
   this.InfoBox=require("./dp-infobox.js");
@@ -2327,4 +2367,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-log.js":2,"./../../common/mod-optionsmanager.js":3,"./../../common/mod-story.js":4,"./dp-actions.js":12,"./dp-constants.js":13,"./dp-controls.js":14,"./dp-drawqueue.js":15,"./dp-eventsmanager.js":16,"./dp-infobox.js":17,"./dp-messagesbox.js":19,"./dp-motions.js":20,"./dp-subtitlebox.js":21}]},{},[5]);
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":12,"./dp-constants.js":13,"./dp-controls.js":14,"./dp-drawqueue.js":15,"./dp-infobox.js":16,"./dp-messagesbox.js":18,"./dp-motions.js":19,"./dp-subtitlebox.js":20}]},{},[6]);

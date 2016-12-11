@@ -13,7 +13,7 @@ module.exports = function(containerId, options) {
 
   //--prototypes & includes--//
   this.log=require("./../../common/mod-log.js");
-  this.EventsManager=require("./dp-eventsmanager.js");
+  this.EventsManager=require("./../../common/mod-eventsmanager.js");
   this.DrawQueue=require("./dp-drawqueue.js");
   this.MessagesBox=require("./dp-messagesbox.js");
   this.InfoBox=require("./dp-infobox.js");

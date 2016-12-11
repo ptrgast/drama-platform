@@ -1,56 +1,64 @@
-module.exports = function(movableElement, parentElement, button) {
+module.exports = function(draggable, container, onDrag) {
+
+  //--Variables--//
+
   var thisobj = this;
+  this._startEvent = null;
 
-  //--prototypes--//
-  this.log = require("./../../common/mod-log.js");
+  //--Init--//
 
-  //--variables--//
-  this._logName = "DragHelper";
-  this.movableElement = movableElement;
-  this.parentElement = parentElement;
-  this.acceptableButton = button;
-  this.dragStart = null;
+  this._mouseDownWrapper = function(event){thisobj._onMouseDown(event);}
+  this._mouseMoveWrapper = function(event){thisobj._onMouseMove(event);}
+  this._mouseUpWrapper = function(event){thisobj._onMouseUp(event);}
+  draggable.addEventListener("mousedown", this._mouseDownWrapper);
+  container.addEventListener("mousemove", this._mouseMoveWrapper);
+  container.addEventListener("mouseup", this._mouseUpWrapper);
 
-  //--value checks--//
-  if(this.movableElement==null) {this.log.error("The 'movableElement' is missing!", this);}
-  if(this.parentElement==null) {this.log.error("The 'parentElement' is missing!", this);}
-  if(this.acceptableButton==null) {this.acceptableButton=0;}
+  //--Functions--//
 
-  //--functions--//
-  this.movableMouseDown = function(event) {
-    if(event.button==thisobj.acceptableButton) {
-      thisobj.dragStart = event.clientX;
-      var allow = thisobj.onDragStart();
-      if(typeof allow!="undefined" && allow==false) {
-        //cancel drag
-        thisobj.dragStart = null;
-      }
+  this._destruct = function() {
+    draggable.removeEventListener("mousedown", this._mouseDownWrapper);
+    container.removeEventListener("mousemove", this._mouseMoveWrapper);
+    container.removeEventListener("mouseup", this._mouseUpWrapper);
+  }
+
+  this._onMouseDown = function(event) {
+    event.stopPropagation();
+    this._startEvent = event;
+    var dragEvent = {
+      dx:0,
+      dy:0,
+      started:true,
+      ended:false
+    };
+    onDrag(dragEvent);
+  }
+
+  this._onMouseMove = function(event) {
+    if(this._startEvent!=null && event.buttons==1) {
+      event.stopPropagation();
+      var dragEvent = {
+        dx:event.clientX-this._startEvent.clientX,
+        dy:event.clientY-this._startEvent.clientY,
+        started:false,
+        ended:false
+      };
+      onDrag(dragEvent);
     }
   }
 
-  this.parentMouseMove = function(event) {
-    if(thisobj.dragStart!=null) {
-      var distance = event.clientX - thisobj.dragStart;
-      thisobj.onDrag(distance);
+  this._onMouseUp = function(event) {
+    if(this._startEvent!=null) {
+      event.stopPropagation();
+      this._startEvent = null;
+      var dragEvent = {
+        dx:0,
+        dy:0,
+        started:false,
+        ended:true
+      };
+      onDrag(dragEvent);
     }
   }
-
-  this.mouseUp = function(event) {
-    if(thisobj.dragStart != null) {
-      thisobj.dragStart = null;
-      thisobj.onDragEnd();
-    }
-  }
-
-  this.onDragStart = function() {};
-  this.onDrag = function(distance) {};
-  this.onDragEnd = function() {};
-
-  //--register listeners--//
-  this.movableElement.addEventListener("mousedown", this.movableMouseDown);
-  this.parentElement.addEventListener("mousemove", this.parentMouseMove);
-  this.movableElement.addEventListener("mouseup", this.mouseUp);
-  this.parentElement.addEventListener("mouseup", this.mouseUp);
-  document.addEventListener("mouseup", this.mouseUp);
 
 }
