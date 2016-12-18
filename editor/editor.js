@@ -350,9 +350,7 @@ module.exports = function() {
     //Get and prepare the timeline
     this.timeline=story.timeline;
     //Sort the events by time
-    this.timeline.sort(function(event1,event2) {
-      return event1.time-event2.time;
-    });
+    this._sortTimeline();
 
     //Map names to array indices
     for(var i=0;i<this.timeline.length;i++) {
@@ -375,6 +373,12 @@ module.exports = function() {
     }
 
     this._findLanguages();
+  }
+
+  this._sortTimeline = function() {
+    this.timeline.sort(function(event1,event2) {
+      return event1.time-event2.time;
+    });
   }
 
   //Resets actors to their initial positions
@@ -519,7 +523,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.7";
+  this.EDITOR_VERSION = "0.8";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
@@ -609,22 +613,7 @@ drama.Editor = function(containerId) {
   this._storyLoaded = function() {
     var story = this.player.story;
 
-    for(var i=0; i<story.timeline.length; i++) {
-      var name = story.timeline[i].actor || story.timeline[i].audiotrack;
-      if(story.timeline[i].subtitle!=null) {name = "subtitle";}
-      var endTime = null;
-      if(
-        story.timeline[i].action!=null &&
-        typeof story.timeline[i].action=="object" &&
-        story.timeline[i].action.params!=null &&
-        typeof story.timeline[i].action.params=="object" &&
-        typeof story.timeline[i].action.params.tt=="number"
-      ) {
-        endTime = story.timeline[i].time+story.timeline[i].action.params.tt;
-      }
-      this.timelineEditor.addItem(i, name, name, story.timeline[i].time, endTime);
-    }
-    this.timelineEditor._render();
+    this._inflateTimeline(story);
 
     //refresh the subtitles menu
     var subtitlesMenuItems = [];
@@ -642,6 +631,66 @@ drama.Editor = function(containerId) {
       count:subtitlesMenuItems.length
     });
     subtitlesMenu.items = subtitlesMenuItems;
+  }
+
+  this._inflateTimeline = function(story) {
+    this.timelineEditor.clear();
+    for(var i=0; i<story.timeline.length; i++) {
+      var groupName = story.timeline[i].actor || story.timeline[i].audiotrack;
+      if(story.timeline[i].subtitle!=null) {groupName = "subtitles";}
+      var endTime = null;
+      if(
+        story.timeline[i].action!=null &&
+        typeof story.timeline[i].action=="object" &&
+        story.timeline[i].action.params!=null &&
+        typeof story.timeline[i].action.params=="object" &&
+        typeof story.timeline[i].action.params.tt=="number"
+      ) {
+        endTime = story.timeline[i].action.params.tt;
+      }
+      story.timeline[i]._id = i;
+      this.timelineEditor.addItem(i, groupName, this._getTimelineEventLabel(story.timeline[i]), story.timeline[i].time, endTime);
+    }
+    this.timelineEditor._inflateGroups();
+    this.timelineEditor._render();
+  }
+
+  this._getTimelineEventLabel = function(timelineEvent) {
+    var label="";
+    if(timelineEvent.actor!=null && typeof timelineEvent.actor=="string") {
+      if(timelineEvent.action!=null) {
+        if(typeof timelineEvent.action=="string") {
+          label = timelineEvent.action;
+        } else if(typeof timelineEvent.action=="object" && timelineEvent.action.type!=null && typeof timelineEvent.action.type=="string") {
+          label = timelineEvent.action.type;
+        } else {
+          label = timelineEvent.actor;
+        }
+      } else {
+        label = timelineEvent.actor;
+      }
+    } else if(timelineEvent.audiotrack!=null && typeof timelineEvent.audiotrack=="string") {
+      if(timelineEvent.action!=null && typeof timelineEvent.action=="string") {
+        label = timelineEvent.action;
+      } else {
+        label = timelineEvent.audiotrack;
+      }
+    } else if(timelineEvent.subtitle!=null && typeof timelineEvent.subtitle=="object") {
+      var tmp = Object.keys(timelineEvent.subtitle);
+      label = timelineEvent.subtitle[tmp[0]];
+      label = label.substr(0,14)+"&hellip;";
+    }
+    return label;
+  }
+
+  this._getTimelineEventById = function(id) {
+    var story = this.player.story;
+    for(var i=0; i<story.timeline.length; i++) {
+      if(story.timeline[i]._id==id) {
+        return story.timeline[i];
+      }
+    }
+    return null; //id not found
   }
 
   this._onPlaybackTimeChange = function(change) {
@@ -667,6 +716,32 @@ drama.Editor = function(containerId) {
     thisobj.player.seek(newTime);
   }
   this.timelineEditor.eventsManager.addListener("currenttimechange", this._onUserTime);
+
+  this._onEventChange = function(eventUI) {
+    var story = thisobj.player.story;
+    var timelineEvent = thisobj._getTimelineEventById(eventUI.id);
+    timelineEvent.time = eventUI.startTime;
+    if(
+      typeof timelineEvent.action!="undefined" && timelineEvent.action!=null &&
+      typeof timelineEvent.action.params!="undefined" && timelineEvent.action.params!=null
+    ) {
+      if(typeof timelineEvent.action.params.st!="undefined" && timelineEvent.action.params.st!=null) {
+        timelineEvent.action.params.st = eventUI.startTime;
+      }
+      if(typeof timelineEvent.action.params.tt!="undefined" && timelineEvent.action.params.tt!=null) {
+        timelineEvent.action.params.tt = eventUI.endTime;
+      }
+    }
+    //console.log(eventUI, story.timeline[eventUI.id]);
+    story._sortTimeline();
+  }
+  this.timelineEditor.eventsManager.addListener("eventchange", this._onEventChange);
+
+  this._onEventDoubleClick = function(eventUI) {
+    var timelineEvent = thisobj._getTimelineEventById(eventUI.id);
+    console.log(timelineEvent);
+  }
+  this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick);
 
 }
 
@@ -746,6 +821,11 @@ module.exports = function(container) {
     newItem.startTime = startTime;
     newItem.endTime = endTime;
     this._items.push(newItem);
+  }
+
+  this.clear = function() {
+    this._items.length = 0;
+    this._render();
   }
 
   this._getGroups = function() {
@@ -831,11 +911,11 @@ module.exports = function(container) {
 
   this._onWheel = function(wheelEvent) {
     if(wheelEvent.deltaY>0) { //zoom out
-      this._viewportScale -= 0.05;
+      this._viewportScale -= 0.02;
     } else { //zoom in
-      this._viewportScale += 0.05;
+      this._viewportScale += 0.02;
     }
-    if(this._viewportScale<0.05) {this._viewportScale=0.05};
+    if(this._viewportScale<0.02) {this._viewportScale=0.02};
     this._render();
   }
   this._container.addEventListener("wheel", function(wheelEvent) {thisobj._onWheel(wheelEvent)});
@@ -844,9 +924,8 @@ module.exports = function(container) {
   this._render = function() {
     //clear previous
     this._guidesContainer.innerHTML = "";
-    this._eventsContainer.innerHTML = "";
-    for(var i=0; i<this._UIItems.length; i++) {this._UIItems[i]._destruct();}
-    this.UIITems = [];
+    //for(var i=0; i<this._UIItems.length; i++) {this._UIItems[i]._destruct();}
+    //this.UIITems = [];
 
     //variables
     var viewportWidth = this._eventsContainer.clientWidth;
@@ -883,11 +962,26 @@ module.exports = function(container) {
       currentGuideTime += guidesPeriod;
     }
 
+    //refresh timeline events
+    for(var i=0; i<this._UIItems.length; i++) {
+      this._UIItems[i].refresh();
+    }
+
+    //refresh the time indicator
+    this._timeIndicator.refresh();
+
+  }
+
+  this._inflateGroups = function() {
+    this._eventsContainer.innerHTML = "";
+
+    var groups = this._getGroups();
+
     //add groups
     for(var i=0;i<groups.length;i++) {
       var groupElem = document.createElement("div");
       groupElem.className = "group";
-      groupElem.style.cssText = "position:relative;min-height:1em";
+      groupElem.style.cssText = "position:relative;min-height:1.2em";
 
       //add group label
       var groupLabel = document.createElement("div");
@@ -897,19 +991,17 @@ module.exports = function(container) {
       groupElem.appendChild(groupLabel);
 
       //add events
-      var groupEvents = this._getGroupItemsInPeriod(groups[i], startTime, endTime);
+      // var groupEvents = this._getGroupItemsInPeriod(groups[i], startTime, endTime);
+      var groupEvents = this._getGroupItems(groups[i]);
       for(var e=0; e<groupEvents.length; e++) {
         var currentEvent = groupEvents[e];
-        var eventUI = new thisobj._EventUI(thisobj, currentEvent, groups[i]+" ("+currentEvent.startTime+"ms)");
+        var eventUI = new thisobj._EventUI(thisobj, currentEvent, currentEvent.name);
         this._UIItems.push(eventUI);
         groupElem.appendChild(eventUI._container);
       }
 
       this._eventsContainer.appendChild(groupElem);
     }
-
-    //refresh the time indicator
-    this._timeIndicator.refresh();
 
   }
 
@@ -1064,6 +1156,7 @@ module.exports = function(timeline, timelineEvent, label) {
   //--Variables--//
 
   this._editable = true;
+  this._timeline = timeline;
   this._timelineEvent = timelineEvent;
 
   //--Elements--//
@@ -1071,7 +1164,7 @@ module.exports = function(timeline, timelineEvent, label) {
   //container
   this._container = document.createElement("div");
   this._container.className = "event";
-  this._container.style.position = "relative";
+  this._container.style.position = "absolute";
   this._container.style.marginLeft = timeline._timeToX(timelineEvent.startTime)+"px";
   //container > label-container
   this._labelContainer = document.createElement("div");
@@ -1122,6 +1215,7 @@ module.exports = function(timeline, timelineEvent, label) {
         this.refresh();
       }
     } else {
+      this._timeline.eventsManager.callHandlers("eventchange", this._timelineEvent);
       this._dragStartTime = 0;
     }
   }
@@ -1139,6 +1233,7 @@ module.exports = function(timeline, timelineEvent, label) {
         this.refresh();
       }
     } else {
+      this._timeline.eventsManager.callHandlers("eventchange", this._timelineEvent);
       this._dragEndTime = 0;
     }
   }
@@ -1160,10 +1255,17 @@ module.exports = function(timeline, timelineEvent, label) {
       }
         this.refresh();
     } else {
+      this._timeline.eventsManager.callHandlers("eventchange", this._timelineEvent);
       this._dragStartTime = 0;
     }
   }
   this._moveDH = new this._DragInParentHelper(this._labelElem, timeline._eventsContainer, function(dragEvent) {thisobj._onMoveEvent(dragEvent)});
+
+  //Double click
+  this._onDoubleClick = function(event) {
+    thisobj._timeline.eventsManager.callHandlers("eventdoubleclick", thisobj._timelineEvent);
+  }
+  this._container.addEventListener("dblclick", this._onDoubleClick);
 
   this.refresh = function() {
     this._container.style.marginLeft = timeline._timeToX(this._timelineEvent.startTime)+"px";

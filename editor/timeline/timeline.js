@@ -64,6 +64,11 @@ module.exports = function(container) {
     this._items.push(newItem);
   }
 
+  this.clear = function() {
+    this._items.length = 0;
+    this._render();
+  }
+
   this._getGroups = function() {
     var groups = [];
     for(var i=0; i<this._items.length; i++) {
@@ -147,11 +152,11 @@ module.exports = function(container) {
 
   this._onWheel = function(wheelEvent) {
     if(wheelEvent.deltaY>0) { //zoom out
-      this._viewportScale -= 0.05;
+      this._viewportScale -= 0.02;
     } else { //zoom in
-      this._viewportScale += 0.05;
+      this._viewportScale += 0.02;
     }
-    if(this._viewportScale<0.05) {this._viewportScale=0.05};
+    if(this._viewportScale<0.02) {this._viewportScale=0.02};
     this._render();
   }
   this._container.addEventListener("wheel", function(wheelEvent) {thisobj._onWheel(wheelEvent)});
@@ -160,9 +165,8 @@ module.exports = function(container) {
   this._render = function() {
     //clear previous
     this._guidesContainer.innerHTML = "";
-    this._eventsContainer.innerHTML = "";
-    for(var i=0; i<this._UIItems.length; i++) {this._UIItems[i]._destruct();}
-    this.UIITems = [];
+    //for(var i=0; i<this._UIItems.length; i++) {this._UIItems[i]._destruct();}
+    //this.UIITems = [];
 
     //variables
     var viewportWidth = this._eventsContainer.clientWidth;
@@ -199,11 +203,26 @@ module.exports = function(container) {
       currentGuideTime += guidesPeriod;
     }
 
+    //refresh timeline events
+    for(var i=0; i<this._UIItems.length; i++) {
+      this._UIItems[i].refresh();
+    }
+
+    //refresh the time indicator
+    this._timeIndicator.refresh();
+
+  }
+
+  this._inflateGroups = function() {
+    this._eventsContainer.innerHTML = "";
+
+    var groups = this._getGroups();
+
     //add groups
     for(var i=0;i<groups.length;i++) {
       var groupElem = document.createElement("div");
       groupElem.className = "group";
-      groupElem.style.cssText = "position:relative;min-height:1em";
+      groupElem.style.cssText = "position:relative;min-height:1.2em";
 
       //add group label
       var groupLabel = document.createElement("div");
@@ -213,19 +232,17 @@ module.exports = function(container) {
       groupElem.appendChild(groupLabel);
 
       //add events
-      var groupEvents = this._getGroupItemsInPeriod(groups[i], startTime, endTime);
+      // var groupEvents = this._getGroupItemsInPeriod(groups[i], startTime, endTime);
+      var groupEvents = this._getGroupItems(groups[i]);
       for(var e=0; e<groupEvents.length; e++) {
         var currentEvent = groupEvents[e];
-        var eventUI = new thisobj._EventUI(thisobj, currentEvent, groups[i]+" ("+currentEvent.startTime+"ms)");
+        var eventUI = new thisobj._EventUI(thisobj, currentEvent, currentEvent.name);
         this._UIItems.push(eventUI);
         groupElem.appendChild(eventUI._container);
       }
 
       this._eventsContainer.appendChild(groupElem);
     }
-
-    //refresh the time indicator
-    this._timeIndicator.refresh();
 
   }
 

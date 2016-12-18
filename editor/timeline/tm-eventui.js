@@ -9,6 +9,7 @@ module.exports = function(timeline, timelineEvent, label) {
   //--Variables--//
 
   this._editable = true;
+  this._timeline = timeline;
   this._timelineEvent = timelineEvent;
 
   //--Elements--//
@@ -16,7 +17,7 @@ module.exports = function(timeline, timelineEvent, label) {
   //container
   this._container = document.createElement("div");
   this._container.className = "event";
-  this._container.style.position = "relative";
+  this._container.style.position = "absolute";
   this._container.style.marginLeft = timeline._timeToX(timelineEvent.startTime)+"px";
   //container > label-container
   this._labelContainer = document.createElement("div");
@@ -67,6 +68,7 @@ module.exports = function(timeline, timelineEvent, label) {
         this.refresh();
       }
     } else {
+      this._timeline.eventsManager.callHandlers("eventchange", this._timelineEvent);
       this._dragStartTime = 0;
     }
   }
@@ -84,6 +86,7 @@ module.exports = function(timeline, timelineEvent, label) {
         this.refresh();
       }
     } else {
+      this._timeline.eventsManager.callHandlers("eventchange", this._timelineEvent);
       this._dragEndTime = 0;
     }
   }
@@ -105,10 +108,17 @@ module.exports = function(timeline, timelineEvent, label) {
       }
         this.refresh();
     } else {
+      this._timeline.eventsManager.callHandlers("eventchange", this._timelineEvent);
       this._dragStartTime = 0;
     }
   }
   this._moveDH = new this._DragInParentHelper(this._labelElem, timeline._eventsContainer, function(dragEvent) {thisobj._onMoveEvent(dragEvent)});
+
+  //Double click
+  this._onDoubleClick = function(event) {
+    thisobj._timeline.eventsManager.callHandlers("eventdoubleclick", thisobj._timelineEvent);
+  }
+  this._container.addEventListener("dblclick", this._onDoubleClick);
 
   this.refresh = function() {
     this._container.style.marginLeft = timeline._timeToX(this._timelineEvent.startTime)+"px";

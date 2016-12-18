@@ -350,9 +350,7 @@ module.exports = function() {
     //Get and prepare the timeline
     this.timeline=story.timeline;
     //Sort the events by time
-    this.timeline.sort(function(event1,event2) {
-      return event1.time-event2.time;
-    });
+    this._sortTimeline();
 
     //Map names to array indices
     for(var i=0;i<this.timeline.length;i++) {
@@ -375,6 +373,12 @@ module.exports = function() {
     }
 
     this._findLanguages();
+  }
+
+  this._sortTimeline = function() {
+    this.timeline.sort(function(event1,event2) {
+      return event1.time-event2.time;
+    });
   }
 
   //Resets actors to their initial positions
