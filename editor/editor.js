@@ -519,14 +519,16 @@ drama.Editor = function(containerId) {
   this.log = require("./../common/mod-log.js");
   this.StoryManager = require("./storymanager/storymanager.js");
   this.TimelineEditor = require("./timeline/timeline.js");
+  this.EventEditor = require("./eventeditor/eventeditor.js");
   this.Player = require("./../player/modules/player-main.js");
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.8";
+  this.EDITOR_VERSION = "0.9";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
+  this.eventEditor = new this.EventEditor();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -546,8 +548,9 @@ drama.Editor = function(containerId) {
 
     thisobj._initToolbar();
 
-    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 3px; overflow: hidden;';
+    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 0px; overflow: hidden;';
     var mainStyle = layoutStyle + "background-color:#000;";
+    var rightStyle = layoutStyle + "background-color:#444;";
     var bottomStyle = layoutStyle + "background-color:#222;";
     $("#"+containerId).w2layout({
       name: 'layout',
@@ -555,7 +558,7 @@ drama.Editor = function(containerId) {
       panels: [
         { type: 'top', size: 30, resizable: false, style: layoutStyle, toolbar: thisobj.toolbar },
         { type: 'main', style: mainStyle, content: thisobj.player.playerElement},
-        { type: 'right', size: 300, resizable: true, style: layoutStyle, content: "right content" },
+        { type: 'right', size: 300, resizable: true, style: rightStyle, content: "right content" },
         { type: 'bottom', size: 300, resizable: true, style: bottomStyle, content: thisobj.timelineEditor._container }
       ],
       onResize: thisobj._layoutResizeHandler
@@ -614,8 +617,10 @@ drama.Editor = function(containerId) {
     var story = this.player.story;
 
     this._inflateTimeline(story);
+    this._refreshLanguagesMenu();
+  }
 
-    //refresh the subtitles menu
+  this._refreshLanguagesMenu = function() {
     var subtitlesMenuItems = [];
     var languages = this.player.getLanguages();
     for(var i=0; i<languages.length; i++) {
@@ -739,13 +744,232 @@ drama.Editor = function(containerId) {
 
   this._onEventDoubleClick = function(eventUI) {
     var timelineEvent = thisobj._getTimelineEventById(eventUI.id);
-    console.log(timelineEvent);
+    thisobj.eventEditor.editTimelineEvent(timelineEvent);
+    w2ui["layout"].content("right", thisobj.eventEditor._container);
+    //w2popup.open({title:"Edit Event", content:thisobj.eventEditor._container});
   }
   this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick);
 
+  this._onSubtitleChange = function() {
+    thisobj.player.story._findLanguages();
+    thisobj._refreshLanguagesMenu();
+  }
+  this.eventEditor.eventsManager.addListener("subtitlechanged", this._onSubtitleChange);
+
 }
 
-},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":22,"./storymanager/storymanager.js":7,"./timeline/timeline.js":8}],7:[function(require,module,exports){
+},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":25,"./eventeditor/eventeditor.js":7,"./storymanager/storymanager.js":10,"./timeline/timeline.js":11}],7:[function(require,module,exports){
+module.exports = function(container) {
+
+  var thisobj = this;
+
+  //--Prototypes & Includes--//
+
+  this._SubtitleEditor = require("./mod-subtitleeditor.js");
+  this._AudioEventEditor = require("./mod-audioeventeditor.js");
+  this._EventsManager = require("./../../common/mod-eventsmanager.js");
+
+  //--Variables--//
+
+  this.currentView = null;
+  this.subtitleEditor = new this._SubtitleEditor(this);
+  this.audioEventEditor = new this._AudioEventEditor(this);
+  this.eventsManager=new this._EventsManager();
+
+  //--Elements--//
+
+  //container
+  this._container = (container==null || typeof container=="undefined")?document.createElement("div"):container;
+  this._container.className = "event-editor";
+  this._container.style.cssText = "position:absolute; width:100%; height:100%;";
+  //container > header
+  this._containerHeader = document.createElement("div");
+  this._containerHeader.className = "event-editor-header";
+  this._containerHeader.style.cssText = "position:absolute; top:0; padding:0 0.5em; width:100%; height:2.5em; line-height:2.5em; font-weight:bold";
+  this._container.appendChild(this._containerHeader);
+  //container > body
+  this._containerBody = document.createElement("div");
+  this._containerBody.className = "event-editor-body";
+  this._containerBody.style.cssText = "height:100%; padding:2.5em 0; overflow-y:auto;"
+  this._container.appendChild(this._containerBody);
+  //container > footer
+  this._containerFooter = document.createElement("div");
+  this._containerFooter.className = "event-editor-footer";
+  this._containerFooter.style.cssText = "position:absolute; width:100%; padding:0 0.5em; height:2.5em; line-height:2.5em; bottom:0; text-align: right";
+  this._container.appendChild(this._containerFooter);
+  //container > footer > save
+  this._saveButton = document.createElement("button");
+  this._saveButton.style.cssText = "margin-right:0.5em";
+  this._saveButton.innerHTML = "Save";
+  this._saveButton.onclick = function() {thisobj._save();}
+  this._containerFooter.appendChild(this._saveButton);
+  //container > footer > cancel
+  this._cancelButton = document.createElement("button");
+  this._cancelButton.innerHTML = "Cancel";
+  this._cancelButton.onclick = function() {thisobj._cancel();}
+  this._containerFooter.appendChild(this._cancelButton);
+
+  //--Functions--//
+
+  this.editTimelineEvent = function(timelineEvent) {
+    if(typeof timelineEvent.subtitle=="object") {
+      //subtitle
+      this.subtitleEditor.edit(timelineEvent);
+      this._containerHeader.innerHTML="Subtitle";
+      this._containerBody.innerHTML="";
+      this.currentView = this.subtitleEditor;
+      this._containerBody.appendChild(this.currentView._container);
+    } if(typeof timelineEvent.audiotrack=="string") {
+      //audiotrack
+      this.currentView = this.audioEventEditor;
+      this._containerHeader.innerHTML="Audio";
+      this._containerBody.innerHTML="";
+      this._containerBody.appendChild(this.currentView._container);
+    }
+  }
+
+  this._save = function() {
+    if(this.currentView!=null) {
+      this.currentView.save();
+    }
+  }
+
+  this._cancel = function() {
+
+  }
+
+
+}
+
+},{"./../../common/mod-eventsmanager.js":2,"./mod-audioeventeditor.js":8,"./mod-subtitleeditor.js":9}],8:[function(require,module,exports){
+module.exports = function(eventEditor) {
+
+  var thisobj = this;
+
+  //--Variables--//
+  this._eventEditor = eventEditor;
+  this.currentEvent = null;
+
+  //--Elements--//
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "audioevent-editor";
+
+}
+
+},{}],9:[function(require,module,exports){
+module.exports = function(eventEditor) {
+
+  var thisobj = this;
+
+  //--Variables--//
+  this._eventEditor = eventEditor;
+  this.currentEvent = null;
+
+  //--Elements--//
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "subtitle-editor";
+  //container > subtitles container
+  this._subtitlesContainer = document.createElement("div");
+  this._subtitlesContainer.className = "subtitles";
+  this._container.appendChild(this._subtitlesContainer);
+  //container > footer
+  this._footer = document.createElement("div");
+  this._footer.className = "footer";
+  this._footer.style.cssText = "padding:0.5em";
+  this._container.appendChild(this._footer);
+  //container > footer > add
+  this._addButton = document.createElement("button");
+  this._addButton.innerHTML = "Add";
+  this._addButton.onclick = function(){thisobj._add();}
+  this._footer.appendChild(this._addButton);
+
+  //--Functions--//
+  this.edit = function(timelineEvent) {
+    this._subtitlesContainer.innerHTML = "";
+    if(timelineEvent!=null && typeof timelineEvent.subtitle=="object") {
+      this.currentEvent = timelineEvent;
+      var items = Object.keys(timelineEvent.subtitle);
+      for(var i=0; i<items.length; i++) {
+        var newItem = new SingleLanguageEditor(items[i], timelineEvent.subtitle[items[i]]);
+        this._subtitlesContainer.appendChild(newItem._container);
+      }
+    }
+  }
+
+  this.save = function() {
+    var subtitles = {};
+    var items = this._subtitlesContainer.getElementsByClassName("item");
+    for(var i=0; i<items.length; i++) {
+      var currentItem = items[i];
+      var languageSelector = currentItem.getElementsByClassName("subtitle-language")[0];
+      var language = languageSelector.options[languageSelector.selectedIndex].value;
+      var textInput = currentItem.getElementsByClassName("subtitle-text")[0];
+      subtitles[language] = textInput.value;
+    }
+    this.currentEvent.subtitle = subtitles;
+    this._eventEditor.eventsManager.callHandlers("subtitlechanged");
+  }
+
+  this._add = function() {
+    var newItem = new SingleLanguageEditor("en", "");
+    this._subtitlesContainer.appendChild(newItem._container);
+  }
+
+}
+
+function SingleLanguageEditor(language, subtitle) {
+
+  var thisobj = this;
+
+  //--Variables--//
+  this._iso639_1 = ["ab","aa","af","ak","sq","am","ar","an","hy","as","av","ae","ay","az","bm","ba","eu","be","bn","bh","bi","bs",
+                    "br","bg","my","ca","ch","ce","ny","zh","cv","kw","co","cr","hr","cs","da","dv","nl","dz","en","eo","et","ee",
+                    "fo","fj","fi","fr","ff","gl","ka","de","el","gn","gu","ht","ha","he","hz","hi","ho","hu","ia","id","ie","ga",
+                    "ig","ik","io","is","it","iu","ja","jv","kl","kn","kr","ks","kk","km","ki","rw","ky","kv","kg","ko","ku","kj",
+                    "la","lb","lg","li","ln","lo","lt","lu","lv","gv","mk","mg","ms","ml","mt","mi","mr","mh","mn","na","nv","nd",
+                    "ne","ng","nb","nn","no","ii","nr","oc","oj","cu","om","or","os","pa","pi","fa","pl","ps","pt","qu","rm","rn",
+                    "ro","ru","sa","sc","sd","se","sm","sg","sr","gd","sn","si","sk","sl","so","st","es","su","sw","ss","sv","ta",
+                    "te","tg","th","ti","bo","tk","tl","tn","to","tr","ts","tt","tw","ty","ug","uk","ur","uz","ve","vi","vo","wa",
+                    "cy","wo","fy","xh","yi","yo","za","zu"];
+
+  //--Elements--//
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "item";
+  this._container.style.cssText = "padding:0.5em;";
+  //container>language select
+  this._languageSelector = document.createElement("select");
+  this._languageSelector.className = "subtitle-language"
+  this._languageSelector.style.cssText = "margin-right:0.5em";
+  var content = "";
+  for(var i=0; i<this._iso639_1.length; i++) {
+    var isoLang = this._iso639_1[i]
+    content+="<option value='"+isoLang+"' "+(isoLang==language?"selected":"")+">"+isoLang+"</option>";
+  }
+  this._languageSelector.innerHTML = content;
+  this._container.appendChild(this._languageSelector);
+  //container>subtitle input
+  this._subtitleInput = document.createElement("input");
+  this._subtitleInput.className = "subtitle-text";
+  this._subtitleInput.style.cssText = "margin-right:0.5em";
+  this._subtitleInput.setAttribute("value", subtitle);
+  this._container.appendChild(this._subtitleInput);
+  //container>delete
+  this._deleteButton = document.createElement("button");
+  this._deleteButton.innerHTML = "Delete";
+  this._deleteButton.onclick = function() {thisobj._delete();}
+  this._container.appendChild(this._deleteButton);
+
+  //--Functions--//
+  this._delete = function() {
+    this._container.parentElement.removeChild(this._container);
+  }
+
+}
+
+},{}],10:[function(require,module,exports){
 module.exports = function() {
   var thisobj = this;
 
@@ -756,7 +980,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-log.js":3}],8:[function(require,module,exports){
+},{"./../../common/mod-log.js":3}],11:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -800,7 +1024,6 @@ module.exports = function(container) {
   //container > time indicator
   this._timeIndicator = new this._TimeIndicator(this);
   this._container.appendChild(this._timeIndicator._container);
-
 
   //--Functions--//
 
@@ -1078,7 +1301,7 @@ function _TimelineDragHelper(element, onDrag) {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":10,"./tm-timeindicator.js":11}],9:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":13,"./tm-timeindicator.js":14}],12:[function(require,module,exports){
 module.exports = function(draggable, container, onDrag) {
 
   //--Variables--//
@@ -1144,7 +1367,7 @@ module.exports = function(draggable, container, onDrag) {
 
 }
 
-},{}],10:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 module.exports = function(timeline, timelineEvent, label) {
 
   var thisobj = this;
@@ -1289,7 +1512,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
 }
 
-},{"./tm-draghelper.js":9}],11:[function(require,module,exports){
+},{"./tm-draghelper.js":12}],14:[function(require,module,exports){
 module.exports = function(timeline) {
 
   var thisobj = this;
@@ -1343,7 +1566,7 @@ module.exports = function(timeline) {
 
 }
 
-},{"./tm-draghelper.js":9}],12:[function(require,module,exports){
+},{"./tm-draghelper.js":12}],15:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -1445,14 +1668,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],13:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],14:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -1620,7 +1843,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":17,"./dp-volumecontrol.js":21}],15:[function(require,module,exports){
+},{"./dp-languageselector.js":20,"./dp-volumecontrol.js":24}],18:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1655,7 +1878,7 @@ module.exports = function() {
 
 }
 
-},{}],16:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -1712,7 +1935,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],17:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1743,7 +1966,7 @@ module.exports = function() {
 
 }
 
-},{}],18:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -1773,7 +1996,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],19:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -1806,7 +2029,7 @@ module.exports={
 
 };
 
-},{}],20:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -1835,7 +2058,7 @@ module.exports = function() {
 	}
 }
 
-},{}],21:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -1896,7 +2119,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],22:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -1967,13 +2190,18 @@ module.exports = function(containerId, options) {
     else {return [];}
   }
 
-  //create elements
+  //--elements--//
+
+  // player
   this.playerElement=(typeof containerId=="undefined" || containerId==null)?document.createElement("div"):document.getElementById(containerId);
+  this.playerElement.className = "drama-player";
   this.playerElement.style.position="relative";
   this.playerElement.style.overflow="hidden";
   this.playerElement.style.backgroundColor="#000";
+  // player > canvas-wrapper
   this.canvasWrapper=document.createElement("div");
   this.canvasWrapper.style.cssText="font-size:0px;text-align:center;";
+  // player > canvas-wrapper > canvas
   this.canvas=document.createElement("canvas");
   this.canvas.style.cssText="background-color:#000;"
   this.canvas.innerHTML="<p>Sorry, your browser doesn't support the <code>&lt;canvas&gt;</code> element...</p>";
@@ -2469,4 +2697,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":12,"./dp-constants.js":13,"./dp-controls.js":14,"./dp-drawqueue.js":15,"./dp-infobox.js":16,"./dp-messagesbox.js":18,"./dp-motions.js":19,"./dp-subtitlebox.js":20}]},{},[6]);
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":15,"./dp-constants.js":16,"./dp-controls.js":17,"./dp-drawqueue.js":18,"./dp-infobox.js":19,"./dp-messagesbox.js":21,"./dp-motions.js":22,"./dp-subtitlebox.js":23}]},{},[6]);

@@ -8,14 +8,16 @@ drama.Editor = function(containerId) {
   this.log = require("./../common/mod-log.js");
   this.StoryManager = require("./storymanager/storymanager.js");
   this.TimelineEditor = require("./timeline/timeline.js");
+  this.EventEditor = require("./eventeditor/eventeditor.js");
   this.Player = require("./../player/modules/player-main.js");
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.8";
+  this.EDITOR_VERSION = "0.9";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false});
   this.timelineEditor = new this.TimelineEditor();
+  this.eventEditor = new this.EventEditor();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -35,8 +37,9 @@ drama.Editor = function(containerId) {
 
     thisobj._initToolbar();
 
-    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 3px; overflow: hidden;';
+    var layoutStyle = 'border: 1px solid #dfdfdf; padding: 0px; overflow: hidden;';
     var mainStyle = layoutStyle + "background-color:#000;";
+    var rightStyle = layoutStyle + "background-color:#444;";
     var bottomStyle = layoutStyle + "background-color:#222;";
     $("#"+containerId).w2layout({
       name: 'layout',
@@ -44,7 +47,7 @@ drama.Editor = function(containerId) {
       panels: [
         { type: 'top', size: 30, resizable: false, style: layoutStyle, toolbar: thisobj.toolbar },
         { type: 'main', style: mainStyle, content: thisobj.player.playerElement},
-        { type: 'right', size: 300, resizable: true, style: layoutStyle, content: "right content" },
+        { type: 'right', size: 300, resizable: true, style: rightStyle, content: "right content" },
         { type: 'bottom', size: 300, resizable: true, style: bottomStyle, content: thisobj.timelineEditor._container }
       ],
       onResize: thisobj._layoutResizeHandler
@@ -103,8 +106,10 @@ drama.Editor = function(containerId) {
     var story = this.player.story;
 
     this._inflateTimeline(story);
+    this._refreshLanguagesMenu();
+  }
 
-    //refresh the subtitles menu
+  this._refreshLanguagesMenu = function() {
     var subtitlesMenuItems = [];
     var languages = this.player.getLanguages();
     for(var i=0; i<languages.length; i++) {
@@ -228,8 +233,16 @@ drama.Editor = function(containerId) {
 
   this._onEventDoubleClick = function(eventUI) {
     var timelineEvent = thisobj._getTimelineEventById(eventUI.id);
-    console.log(timelineEvent);
+    thisobj.eventEditor.editTimelineEvent(timelineEvent);
+    w2ui["layout"].content("right", thisobj.eventEditor._container);
+    //w2popup.open({title:"Edit Event", content:thisobj.eventEditor._container});
   }
   this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick);
+
+  this._onSubtitleChange = function() {
+    thisobj.player.story._findLanguages();
+    thisobj._refreshLanguagesMenu();
+  }
+  this.eventEditor.eventsManager.addListener("subtitlechanged", this._onSubtitleChange);
 
 }

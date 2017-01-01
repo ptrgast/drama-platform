@@ -68,13 +68,18 @@ module.exports = function(containerId, options) {
     else {return [];}
   }
 
-  //create elements
+  //--elements--//
+
+  // player
   this.playerElement=(typeof containerId=="undefined" || containerId==null)?document.createElement("div"):document.getElementById(containerId);
+  this.playerElement.className = "drama-player";
   this.playerElement.style.position="relative";
   this.playerElement.style.overflow="hidden";
   this.playerElement.style.backgroundColor="#000";
+  // player > canvas-wrapper
   this.canvasWrapper=document.createElement("div");
   this.canvasWrapper.style.cssText="font-size:0px;text-align:center;";
+  // player > canvas-wrapper > canvas
   this.canvas=document.createElement("canvas");
   this.canvas.style.cssText="background-color:#000;"
   this.canvas.innerHTML="<p>Sorry, your browser doesn't support the <code>&lt;canvas&gt;</code> element...</p>";

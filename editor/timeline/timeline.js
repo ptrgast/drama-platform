@@ -42,7 +42,6 @@ module.exports = function(container) {
   this._timeIndicator = new this._TimeIndicator(this);
   this._container.appendChild(this._timeIndicator._container);
 
-
   //--Functions--//
 
   this.getContainer = function() {
