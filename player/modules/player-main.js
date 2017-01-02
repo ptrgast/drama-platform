@@ -21,6 +21,7 @@ module.exports = function(containerId, options) {
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/mod-story.js");
   this.OptionsManager=require("./../../common/mod-optionsmanager.js");
+  this.ResizeDetector=require("./dp-resizedetector.js");
 
   //--prepare options--//
   this._defaultOptions = {
@@ -29,7 +30,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.32.2";
+  this.PLAYER_VERSION = "0.32.3";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -53,6 +54,7 @@ module.exports = function(containerId, options) {
   this.playbackProgressTimer = null;
   this.playbackProgressTimerInterval = 200;
   this.options = new this.OptionsManager(this._defaultOptions, options);
+  this.resizeDetector = new this.ResizeDetector();
 
   //--functions--//
 
@@ -105,13 +107,27 @@ module.exports = function(containerId, options) {
   this._onresize=function() {
     if(!this.isFullscreen) {
       this.playerWidth=this.playerElement.clientWidth;
-      this.playerHeight=this.playerWidth/this.playerRatio;
+      var requestedHeight = this.options.get("height");
+      if(requestedHeight==null) {
+        this.playerHeight = this.playerWidth/this.playerRatio;
+        this.playerElement.style.height=this.playerHeight+"px";
+      } else {
+        this.playerElement.style.height = requestedHeight;
+        this.playerHeight = this.playerElement.clientHeight;
+      }
     } else {
       this.playerWidth=window.innerWidth;
       this.playerHeight=window.innerHeight;
+      this.playerElement.style.height=this.playerHeight+"px";
     }
-    this.playerElement.style.height=this.playerHeight+"px";
+
+    //resize canvas
     this._computeCanvasSize(this.playerWidth, this.playerHeight);
+
+    //set subtitles size
+    var subsize = (((this.canvas.width/400)*0.9*10)|0)/10;
+    this.subtitlebox.setSize(subsize);
+
     this.eventsManager.callHandlers("resize");
   }
 
@@ -134,6 +150,8 @@ module.exports = function(containerId, options) {
     }
   }
 
+  this.playerElement.onresize = function() {thisobj._onresize();}
+  this.resizeDetector.watchElement(this.playerElement);
   this._onresize();
 
   window.addEventListener("resize",function() {

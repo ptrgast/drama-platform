@@ -224,6 +224,8 @@ module.exports = function(defaultOptions, userOptions) {
       } else {
         return this.defaultOptions[param];
       }
+    } else {
+      return this.userOptions[param];
     }
   }
 
@@ -785,7 +787,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":11,"./dp-volumecontrol.js":15}],9:[function(require,module,exports){
+},{"./dp-languageselector.js":11,"./dp-volumecontrol.js":16}],9:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -972,12 +974,53 @@ module.exports={
 };
 
 },{}],14:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj = this;
+  this._elements = [];
+  this._watchInterval = 500;
+  this._watchTimer = null;
+
+  this._init = function() {
+    this._watchTimer = setInterval(function() {thisobj._watch();}, this._watchInterval);
+  }
+
+  this._watch = function() {
+    for(var i=0; i<this._elements.length; i++) {
+      var current = this._elements[i];
+      var currentWidth = current.element.offsetWidth;
+      var currentHeight = current.element.offsetHeight;
+      if(currentWidth!=current.lastWidth || currentHeight!=current.lastHeight) {
+        //element resized since last check
+        console.log("Resized", current.element);
+        if(typeof current.element.onresize=="function") {
+          current.element.onresize();
+        }
+      }
+      current.lastWidth = currentWidth;
+      current.lastHeight = currentHeight;
+    }
+  }
+
+  this.watchElement = function(element) {
+    this._elements.push({
+      element:element,
+      lastWidth:element.offsetWidth,
+      lastHeight:element.offsetHeight
+    });
+  }
+
+  this._init();
+
+}
+
+},{}],15:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
 	this.container.style.cssText="position:absolute;bottom:0px;width:100%;text-align:center;";
 	this.subtitleElement=document.createElement("span");
-	this.subtitleElement.style.cssText="visibility:hidden;display:inline-block;margin:30px 30px 5% 30px;padding:5px 10px;max-width:800px;font-size:2em;font-family:sans-serif;"
+	this.subtitleElement.style.cssText="visibility:hidden;display:inline-block;margin:30px 30px 2% 30px;padding:5px 10px;max-width:900px;font-size:2em;font-family:sans-serif;"
 																			+"color:rgba(255,255,255,0.8);text-shadow:-1px -1px 0 rgba(0,0,0,0.5), 1px -1px 0 rgba(0,0,0,0.5), -1px 1px 0 rgba(0,0,0,0.5), 1px 1px 0 rgba(0,0,0,0.5);";
 	this.container.appendChild(this.subtitleElement);
 	this.defaultDuration=4000;
@@ -991,16 +1034,21 @@ module.exports = function() {
 		this.subtitleElement.innerHTML=text;
 		thisobj.subtitleElement.style.visibility="visible";
 	}
-	
+
 	this.hide=function() {
 		clearInterval(thisobj.timer);
 		thisobj.timer=null;
 		thisobj.subtitleElement.innerHTML="";
 		thisobj.subtitleElement.style.visibility="hidden";
 	}
+
+	this.setSize=function(em_size) {
+		this.subtitleElement.style.fontSize = em_size+"em";
+	}
+
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -1061,7 +1109,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -1085,6 +1133,7 @@ module.exports = function(containerId, options) {
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/mod-story.js");
   this.OptionsManager=require("./../../common/mod-optionsmanager.js");
+  this.ResizeDetector=require("./dp-resizedetector.js");
 
   //--prepare options--//
   this._defaultOptions = {
@@ -1093,7 +1142,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.32.2";
+  this.PLAYER_VERSION = "0.32.3";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -1117,6 +1166,7 @@ module.exports = function(containerId, options) {
   this.playbackProgressTimer = null;
   this.playbackProgressTimerInterval = 200;
   this.options = new this.OptionsManager(this._defaultOptions, options);
+  this.resizeDetector = new this.ResizeDetector();
 
   //--functions--//
 
@@ -1169,13 +1219,27 @@ module.exports = function(containerId, options) {
   this._onresize=function() {
     if(!this.isFullscreen) {
       this.playerWidth=this.playerElement.clientWidth;
-      this.playerHeight=this.playerWidth/this.playerRatio;
+      var requestedHeight = this.options.get("height");
+      if(requestedHeight==null) {
+        this.playerHeight = this.playerWidth/this.playerRatio;
+        this.playerElement.style.height=this.playerHeight+"px";
+      } else {
+        this.playerElement.style.height = requestedHeight;
+        this.playerHeight = this.playerElement.clientHeight;
+      }
     } else {
       this.playerWidth=window.innerWidth;
       this.playerHeight=window.innerHeight;
+      this.playerElement.style.height=this.playerHeight+"px";
     }
-    this.playerElement.style.height=this.playerHeight+"px";
+
+    //resize canvas
     this._computeCanvasSize(this.playerWidth, this.playerHeight);
+
+    //set subtitles size
+    var subsize = (((this.canvas.width/400)*0.9*10)|0)/10;
+    this.subtitlebox.setSize(subsize);
+
     this.eventsManager.callHandlers("resize");
   }
 
@@ -1198,6 +1262,8 @@ module.exports = function(containerId, options) {
     }
   }
 
+  this.playerElement.onresize = function() {thisobj._onresize();}
+  this.resizeDetector.watchElement(this.playerElement);
   this._onresize();
 
   window.addEventListener("resize",function() {
@@ -1639,10 +1705,10 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":6,"./dp-constants.js":7,"./dp-controls.js":8,"./dp-drawqueue.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-subtitlebox.js":14}],17:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":6,"./dp-constants.js":7,"./dp-controls.js":8,"./dp-drawqueue.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-resizedetector.js":14,"./dp-subtitlebox.js":15}],18:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 
 drama.Player = require("./modules/player-main.js");
 
-},{"./modules/player-main.js":16}]},{},[17]);
+},{"./modules/player-main.js":17}]},{},[18]);

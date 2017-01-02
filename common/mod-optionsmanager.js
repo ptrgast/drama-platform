@@ -12,6 +12,8 @@ module.exports = function(defaultOptions, userOptions) {
       } else {
         return this.defaultOptions[param];
       }
+    } else {
+      return this.userOptions[param];
     }
   }
 
