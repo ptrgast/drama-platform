@@ -233,6 +233,47 @@ module.exports = function(defaultOptions, userOptions) {
 
 },{}],5:[function(require,module,exports){
 module.exports = function() {
+
+  var thisobj = this;
+  this._elements = [];
+  this._watchInterval = 500;
+  this._watchTimer = null;
+
+  this._init = function() {
+    this._watchTimer = setInterval(function() {thisobj._watch();}, this._watchInterval);
+  }
+
+  this._watch = function() {
+    for(var i=0; i<this._elements.length; i++) {
+      var current = this._elements[i];
+      var currentWidth = current.element.offsetWidth;
+      var currentHeight = current.element.offsetHeight;
+      if(currentWidth!=current.lastWidth || currentHeight!=current.lastHeight) {
+        //element resized since last check
+        //console.log("Resized element", current.element, current.element.onresize);
+        if(typeof current.element.onresize=="function") {
+          current.element.onresize();
+        }
+      }
+      current.lastWidth = currentWidth;
+      current.lastHeight = currentHeight;
+    }
+  }
+
+  this.watchElement = function(element) {
+    this._elements.push({
+      element:element,
+      lastWidth:element.offsetWidth,
+      lastHeight:element.offsetHeight
+    });
+  }
+
+  this._init();
+
+}
+
+},{}],6:[function(require,module,exports){
+module.exports = function() {
   var thisobj=this;
   this.STATUS_NOT_LOADED=0;
   this.STATUS_LOADING=1;
@@ -510,7 +551,7 @@ function MovableObject() {
   }
 }
 
-},{"./mod-audiotrack.js":1,"./mod-log.js":3}],6:[function(require,module,exports){
+},{"./mod-audiotrack.js":1,"./mod-log.js":3}],7:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -612,14 +653,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -787,7 +828,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":11,"./dp-volumecontrol.js":16}],9:[function(require,module,exports){
+},{"./dp-languageselector.js":12,"./dp-volumecontrol.js":16}],10:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -822,7 +863,7 @@ module.exports = function() {
 
 }
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -879,7 +920,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -910,7 +951,7 @@ module.exports = function() {
 
 }
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -940,7 +981,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -972,47 +1013,6 @@ module.exports={
   }
 
 };
-
-},{}],14:[function(require,module,exports){
-module.exports = function() {
-
-  var thisobj = this;
-  this._elements = [];
-  this._watchInterval = 500;
-  this._watchTimer = null;
-
-  this._init = function() {
-    this._watchTimer = setInterval(function() {thisobj._watch();}, this._watchInterval);
-  }
-
-  this._watch = function() {
-    for(var i=0; i<this._elements.length; i++) {
-      var current = this._elements[i];
-      var currentWidth = current.element.offsetWidth;
-      var currentHeight = current.element.offsetHeight;
-      if(currentWidth!=current.lastWidth || currentHeight!=current.lastHeight) {
-        //element resized since last check
-        console.log("Resized", current.element);
-        if(typeof current.element.onresize=="function") {
-          current.element.onresize();
-        }
-      }
-      current.lastWidth = currentWidth;
-      current.lastHeight = currentHeight;
-    }
-  }
-
-  this.watchElement = function(element) {
-    this._elements.push({
-      element:element,
-      lastWidth:element.offsetWidth,
-      lastHeight:element.offsetHeight
-    });
-  }
-
-  this._init();
-
-}
 
 },{}],15:[function(require,module,exports){
 //////////// SubtitleBox ////////////
@@ -1133,7 +1133,7 @@ module.exports = function(containerId, options) {
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/mod-story.js");
   this.OptionsManager=require("./../../common/mod-optionsmanager.js");
-  this.ResizeDetector=require("./dp-resizedetector.js");
+  this.ResizeDetector=require("./../../common/mod-resizedetector.js");
 
   //--prepare options--//
   this._defaultOptions = {
@@ -1705,7 +1705,7 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":6,"./dp-constants.js":7,"./dp-controls.js":8,"./dp-drawqueue.js":9,"./dp-infobox.js":10,"./dp-messagesbox.js":12,"./dp-motions.js":13,"./dp-resizedetector.js":14,"./dp-subtitlebox.js":15}],18:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":7,"./dp-constants.js":8,"./dp-controls.js":9,"./dp-drawqueue.js":10,"./dp-infobox.js":11,"./dp-messagesbox.js":13,"./dp-motions.js":14,"./dp-subtitlebox.js":15}],18:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 

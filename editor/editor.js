@@ -233,6 +233,47 @@ module.exports = function(defaultOptions, userOptions) {
 
 },{}],5:[function(require,module,exports){
 module.exports = function() {
+
+  var thisobj = this;
+  this._elements = [];
+  this._watchInterval = 500;
+  this._watchTimer = null;
+
+  this._init = function() {
+    this._watchTimer = setInterval(function() {thisobj._watch();}, this._watchInterval);
+  }
+
+  this._watch = function() {
+    for(var i=0; i<this._elements.length; i++) {
+      var current = this._elements[i];
+      var currentWidth = current.element.offsetWidth;
+      var currentHeight = current.element.offsetHeight;
+      if(currentWidth!=current.lastWidth || currentHeight!=current.lastHeight) {
+        //element resized since last check
+        //console.log("Resized element", current.element, current.element.onresize);
+        if(typeof current.element.onresize=="function") {
+          current.element.onresize();
+        }
+      }
+      current.lastWidth = currentWidth;
+      current.lastHeight = currentHeight;
+    }
+  }
+
+  this.watchElement = function(element) {
+    this._elements.push({
+      element:element,
+      lastWidth:element.offsetWidth,
+      lastHeight:element.offsetHeight
+    });
+  }
+
+  this._init();
+
+}
+
+},{}],6:[function(require,module,exports){
+module.exports = function() {
   var thisobj=this;
   this.STATUS_NOT_LOADED=0;
   this.STATUS_LOADING=1;
@@ -510,7 +551,7 @@ function MovableObject() {
   }
 }
 
-},{"./mod-audiotrack.js":1,"./mod-log.js":3}],6:[function(require,module,exports){
+},{"./mod-audiotrack.js":1,"./mod-log.js":3}],7:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 
@@ -522,15 +563,17 @@ drama.Editor = function(containerId) {
   this.StoryManager = require("./storymanager/storymanager.js");
   this.TimelineEditor = require("./timeline/timeline.js");
   this.EventEditor = require("./eventeditor/eventeditor.js");
+  this.Popup = require("./popup/popup.js");
   this.Player = require("./../player/modules/player-main.js");
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.9";
+  this.EDITOR_VERSION = "0.10";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
   this.eventEditor = new this.EventEditor();
+  this.popup = new this.Popup();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -747,10 +790,17 @@ drama.Editor = function(containerId) {
   this._onEventDoubleClick = function(eventUI) {
     var timelineEvent = thisobj._getTimelineEventById(eventUI.id);
     thisobj.eventEditor.editTimelineEvent(timelineEvent);
-    w2ui["layout"].content("right", thisobj.eventEditor._container);
-    //w2popup.open({title:"Edit Event", content:thisobj.eventEditor._container});
+    thisobj.popup.show("Edit Event", thisobj.eventEditor._container, null, thisobj._onEventSave, thisobj._onEventCancel);
   }
-  this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick);
+  this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick, this._onEventCancel);
+
+  this._onEventSave = function() {
+    thisobj.eventEditor.save();
+  }
+
+  this._onEventCancel = function() {
+    thisobj.eventEditor.cancel();
+  }
 
   this._onSubtitleChange = function() {
     thisobj.player.story._findLanguages();
@@ -760,7 +810,7 @@ drama.Editor = function(containerId) {
 
 }
 
-},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":26,"./eventeditor/eventeditor.js":7,"./storymanager/storymanager.js":10,"./timeline/timeline.js":11}],7:[function(require,module,exports){
+},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":27,"./eventeditor/eventeditor.js":8,"./popup/popup.js":11,"./storymanager/storymanager.js":12,"./timeline/timeline.js":13}],8:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -783,33 +833,12 @@ module.exports = function(container) {
   //container
   this._container = (container==null || typeof container=="undefined")?document.createElement("div"):container;
   this._container.className = "event-editor";
-  this._container.style.cssText = "position:absolute; width:100%; height:100%;";
-  //container > header
-  this._containerHeader = document.createElement("div");
-  this._containerHeader.className = "event-editor-header";
-  this._containerHeader.style.cssText = "position:absolute; top:0; padding:0 0.5em; width:100%; height:2.5em; line-height:2.5em; font-weight:bold";
-  this._container.appendChild(this._containerHeader);
+  this._container.style.cssText = "width:100%; height:100%;";
   //container > body
   this._containerBody = document.createElement("div");
   this._containerBody.className = "event-editor-body";
-  this._containerBody.style.cssText = "height:100%; padding:2.5em 0; overflow-y:auto;"
+  this._containerBody.style.cssText = "padding:0; overflow-y:auto;"
   this._container.appendChild(this._containerBody);
-  //container > footer
-  this._containerFooter = document.createElement("div");
-  this._containerFooter.className = "event-editor-footer";
-  this._containerFooter.style.cssText = "position:absolute; width:100%; padding:0 0.5em; height:2.5em; line-height:2.5em; bottom:0; text-align: right";
-  this._container.appendChild(this._containerFooter);
-  //container > footer > save
-  this._saveButton = document.createElement("button");
-  this._saveButton.style.cssText = "margin-right:0.5em";
-  this._saveButton.innerHTML = "Save";
-  this._saveButton.onclick = function() {thisobj._save();}
-  this._containerFooter.appendChild(this._saveButton);
-  //container > footer > cancel
-  this._cancelButton = document.createElement("button");
-  this._cancelButton.innerHTML = "Cancel";
-  this._cancelButton.onclick = function() {thisobj._cancel();}
-  this._containerFooter.appendChild(this._cancelButton);
 
   //--Functions--//
 
@@ -817,33 +846,32 @@ module.exports = function(container) {
     if(typeof timelineEvent.subtitle=="object") {
       //subtitle
       this.subtitleEditor.edit(timelineEvent);
-      this._containerHeader.innerHTML="Subtitle";
       this._containerBody.innerHTML="";
       this.currentView = this.subtitleEditor;
       this._containerBody.appendChild(this.currentView._container);
     } if(typeof timelineEvent.audiotrack=="string") {
       //audiotrack
       this.currentView = this.audioEventEditor;
-      this._containerHeader.innerHTML="Audio";
       this._containerBody.innerHTML="";
       this._containerBody.appendChild(this.currentView._container);
     }
   }
 
-  this._save = function() {
+  this.save = function() {
+    console.log("Save");
     if(this.currentView!=null) {
       this.currentView.save();
     }
   }
 
-  this._cancel = function() {
-
+  this.cancel = function() {
+    console.log("Cancel");
   }
 
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./mod-audioeventeditor.js":8,"./mod-subtitleeditor.js":9}],8:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./mod-audioeventeditor.js":9,"./mod-subtitleeditor.js":10}],9:[function(require,module,exports){
 module.exports = function(eventEditor) {
 
   var thisobj = this;
@@ -859,7 +887,7 @@ module.exports = function(eventEditor) {
 
 }
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 module.exports = function(eventEditor) {
 
   var thisobj = this;
@@ -971,7 +999,124 @@ function SingleLanguageEditor(language, subtitle) {
 
 }
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj = this;
+
+  //--Prototypes & Includes--//
+
+  this._ResizeDetector = require("./../../common/mod-resizedetector.js");
+
+  //--Variables--//
+  this._visible = false;
+  this._okHandler = null;
+  this._cancelHandler = null;
+  this.resizeDetector = new this._ResizeDetector();
+  this._defaultKeyDownHandler = null;
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "popup-container";
+  this._container.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(100,100,100,0.6); z-index:200";
+  this._container.style.display = "none";
+  //container > window
+  this._windowElem = document.createElement("div");
+  this._windowElem.className = "popup-window";
+  this._windowElem.style.cssText = "position:relative; margin:auto; background-color:#f0f0f0; border-radius:3px; overflow-x:hidden; box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.4);";
+  this._container.appendChild(this._windowElem);
+  //container > window > titleContainer
+  this._titleContainer = document.createElement("div");
+  this._titleContainer.style.cssText ="width:100%; border-bottom:1px solid #e0e0e0;";
+  this._windowElem.appendChild(this._titleContainer);
+  //container > window > titleContainer > title
+  this._titleElem = document.createElement("div");
+  this._titleElem.style.cssText ="padding:0.5em";
+  this._titleElem.innerHTML ="Popup";
+  this._titleContainer.appendChild(this._titleElem);
+  //container > window > body
+  this._bodyElem = document.createElement("div");
+  this._bodyElem.style.cssText ="width:100%;";
+  this._windowElem.appendChild(this._bodyElem);
+  //container > window > footer
+  this._footer = document.createElement("div");
+  this._footer.style.cssText ="padding:0.5em; text-align:right";
+  this._windowElem.appendChild(this._footer);
+  //container > window > footer > Cancel
+  this._cancelButton = document.createElement("button");
+  this._cancelButton.style.cssText = "margin-right:0.5em";
+  this._cancelButton.innerHTML = "Cancel";
+  this._footer.appendChild(this._cancelButton);
+  //container > window > footer > ΟΚ
+  this._okButton = document.createElement("button");
+  this._okButton.innerHTML = "OK";
+  this._footer.appendChild(this._okButton);
+
+  //--Functions--//
+
+  this._init = function() {
+    document.body.appendChild(this._container);
+  }
+  window.addEventListener("load", function() {thisobj._init();});
+
+  this._positionWindow = function() {
+    height = this._windowElem.offsetHeight;
+    this._windowElem.style.marginTop = this._container.offsetHeight/2-height/2+"px";
+  }
+  window.addEventListener("resize", function() {if(thisobj._visible) {thisobj._positionWindow();}});
+  this.resizeDetector.watchElement(this._windowElem);
+  this._windowElem.onresize = function() {thisobj._positionWindow();}
+
+  this.show = function(title, element, width, onOk, onCancel) {
+    this._visible = true;
+
+    this._titleElem.innerHTML = title;
+    this._bodyElem.innerHTML = "";
+    this._bodyElem.appendChild(element);
+
+    if(typeof width!="number") {width=500;}
+    if(typeof height!="number") {height=400;}
+    this._container.style.display = "block";
+    this._windowElem.style.width = width+"px";
+    this._positionWindow();
+
+    if(typeof onOk=="function") {this._okHandler = onOk;}
+    if(typeof onCancel=="function") {this._cancelHandler = onCancel;}
+
+    this._defaultKeyDownHandler = window.onkeydown;
+    window.onkeydown = this._onKeyDown;
+  }
+
+  this.hide = function() {
+    this._visible = false;
+    this._container.style.display = "none";
+    window.onkeydown = this._defaultKeyDownHandler;
+  }
+
+  this._onKeyDown = function(event) {
+    if(event.keyCode==27) {
+      thisobj._onCancel();
+    }
+    event.stopPropagation();
+  }
+
+  this._onOK = function() {
+    this.hide();
+    if(typeof this._okHandler=="function") {this._okHandler();}
+  }
+  this._okButton.onclick = function() {thisobj._onOK();}
+
+  this._onCancel = function() {
+    this.hide();
+    if(typeof this._cancelHandler=="function") {this._cancelHandler();}
+  }
+  this._cancelButton.onclick = function() {thisobj._onCancel();}
+
+}
+
+},{"./../../common/mod-resizedetector.js":5}],12:[function(require,module,exports){
 module.exports = function() {
   var thisobj = this;
 
@@ -982,7 +1127,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-log.js":3}],11:[function(require,module,exports){
+},{"./../../common/mod-log.js":3}],13:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -1303,7 +1448,7 @@ function _TimelineDragHelper(element, onDrag) {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":13,"./tm-timeindicator.js":14}],12:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":15,"./tm-timeindicator.js":16}],14:[function(require,module,exports){
 module.exports = function(draggable, container, onDrag) {
 
   //--Variables--//
@@ -1369,7 +1514,7 @@ module.exports = function(draggable, container, onDrag) {
 
 }
 
-},{}],13:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 module.exports = function(timeline, timelineEvent, label) {
 
   var thisobj = this;
@@ -1514,7 +1659,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
 }
 
-},{"./tm-draghelper.js":12}],14:[function(require,module,exports){
+},{"./tm-draghelper.js":14}],16:[function(require,module,exports){
 module.exports = function(timeline) {
 
   var thisobj = this;
@@ -1568,7 +1713,7 @@ module.exports = function(timeline) {
 
 }
 
-},{"./tm-draghelper.js":12}],15:[function(require,module,exports){
+},{"./tm-draghelper.js":14}],17:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -1670,14 +1815,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],16:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],17:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -1845,7 +1990,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":20,"./dp-volumecontrol.js":25}],18:[function(require,module,exports){
+},{"./dp-languageselector.js":22,"./dp-volumecontrol.js":26}],20:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1880,7 +2025,7 @@ module.exports = function() {
 
 }
 
-},{}],19:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -1937,7 +2082,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],20:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1968,7 +2113,7 @@ module.exports = function() {
 
 }
 
-},{}],21:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -1998,7 +2143,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],22:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -2031,48 +2176,7 @@ module.exports={
 
 };
 
-},{}],23:[function(require,module,exports){
-module.exports = function() {
-
-  var thisobj = this;
-  this._elements = [];
-  this._watchInterval = 500;
-  this._watchTimer = null;
-
-  this._init = function() {
-    this._watchTimer = setInterval(function() {thisobj._watch();}, this._watchInterval);
-  }
-
-  this._watch = function() {
-    for(var i=0; i<this._elements.length; i++) {
-      var current = this._elements[i];
-      var currentWidth = current.element.offsetWidth;
-      var currentHeight = current.element.offsetHeight;
-      if(currentWidth!=current.lastWidth || currentHeight!=current.lastHeight) {
-        //element resized since last check
-        console.log("Resized", current.element);
-        if(typeof current.element.onresize=="function") {
-          current.element.onresize();
-        }
-      }
-      current.lastWidth = currentWidth;
-      current.lastHeight = currentHeight;
-    }
-  }
-
-  this.watchElement = function(element) {
-    this._elements.push({
-      element:element,
-      lastWidth:element.offsetWidth,
-      lastHeight:element.offsetHeight
-    });
-  }
-
-  this._init();
-
-}
-
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -2106,7 +2210,7 @@ module.exports = function() {
 
 }
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -2167,7 +2271,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -2191,7 +2295,7 @@ module.exports = function(containerId, options) {
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/mod-story.js");
   this.OptionsManager=require("./../../common/mod-optionsmanager.js");
-  this.ResizeDetector=require("./dp-resizedetector.js");
+  this.ResizeDetector=require("./../../common/mod-resizedetector.js");
 
   //--prepare options--//
   this._defaultOptions = {
@@ -2763,4 +2867,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-story.js":5,"./dp-actions.js":15,"./dp-constants.js":16,"./dp-controls.js":17,"./dp-drawqueue.js":18,"./dp-infobox.js":19,"./dp-messagesbox.js":21,"./dp-motions.js":22,"./dp-resizedetector.js":23,"./dp-subtitlebox.js":24}]},{},[6]);
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":17,"./dp-constants.js":18,"./dp-controls.js":19,"./dp-drawqueue.js":20,"./dp-infobox.js":21,"./dp-messagesbox.js":23,"./dp-motions.js":24,"./dp-subtitlebox.js":25}]},{},[7]);

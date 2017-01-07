@@ -16,7 +16,7 @@ module.exports = function() {
       var currentHeight = current.element.offsetHeight;
       if(currentWidth!=current.lastWidth || currentHeight!=current.lastHeight) {
         //element resized since last check
-        console.log("Resized", current.element);
+        //console.log("Resized element", current.element, current.element.onresize);
         if(typeof current.element.onresize=="function") {
           current.element.onresize();
         }

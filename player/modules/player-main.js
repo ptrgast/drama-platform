@@ -21,7 +21,7 @@ module.exports = function(containerId, options) {
   this.SubtitleBox=require("./dp-subtitlebox.js");
   this.Story=require("./../../common/mod-story.js");
   this.OptionsManager=require("./../../common/mod-optionsmanager.js");
-  this.ResizeDetector=require("./dp-resizedetector.js");
+  this.ResizeDetector=require("./../../common/mod-resizedetector.js");
 
   //--prepare options--//
   this._defaultOptions = {

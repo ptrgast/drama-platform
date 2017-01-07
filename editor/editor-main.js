@@ -9,15 +9,17 @@ drama.Editor = function(containerId) {
   this.StoryManager = require("./storymanager/storymanager.js");
   this.TimelineEditor = require("./timeline/timeline.js");
   this.EventEditor = require("./eventeditor/eventeditor.js");
+  this.Popup = require("./popup/popup.js");
   this.Player = require("./../player/modules/player-main.js");
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.9";
+  this.EDITOR_VERSION = "0.10";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
   this.eventEditor = new this.EventEditor();
+  this.popup = new this.Popup();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -234,10 +236,17 @@ drama.Editor = function(containerId) {
   this._onEventDoubleClick = function(eventUI) {
     var timelineEvent = thisobj._getTimelineEventById(eventUI.id);
     thisobj.eventEditor.editTimelineEvent(timelineEvent);
-    w2ui["layout"].content("right", thisobj.eventEditor._container);
-    //w2popup.open({title:"Edit Event", content:thisobj.eventEditor._container});
+    thisobj.popup.show("Edit Event", thisobj.eventEditor._container, null, thisobj._onEventSave, thisobj._onEventCancel);
   }
-  this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick);
+  this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick, this._onEventCancel);
+
+  this._onEventSave = function() {
+    thisobj.eventEditor.save();
+  }
+
+  this._onEventCancel = function() {
+    thisobj.eventEditor.cancel();
+  }
 
   this._onSubtitleChange = function() {
     thisobj.player.story._findLanguages();
