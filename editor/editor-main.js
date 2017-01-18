@@ -242,6 +242,10 @@ drama.Editor = function(containerId) {
 
   this._onEventSave = function() {
     thisobj.eventEditor.save();
+    var currentEventId = thisobj.eventEditor.currentView.currentEvent._id;
+    var currentEvent = thisobj._getTimelineEventById(currentEventId);
+    var newLabel = thisobj._getTimelineEventLabel(currentEvent);
+    thisobj.timelineEditor.renameItem(currentEventId, newLabel);
   }
 
   this._onEventCancel = function() {

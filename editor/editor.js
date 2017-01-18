@@ -796,6 +796,10 @@ drama.Editor = function(containerId) {
 
   this._onEventSave = function() {
     thisobj.eventEditor.save();
+    var currentEventId = thisobj.eventEditor.currentView.currentEvent._id;
+    var currentEvent = thisobj._getTimelineEventById(currentEventId);
+    var newLabel = thisobj._getTimelineEventLabel(currentEvent);
+    thisobj.timelineEditor.renameItem(currentEventId, newLabel);
   }
 
   this._onEventCancel = function() {
@@ -810,7 +814,7 @@ drama.Editor = function(containerId) {
 
 }
 
-},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":27,"./eventeditor/eventeditor.js":8,"./popup/popup.js":11,"./storymanager/storymanager.js":12,"./timeline/timeline.js":13}],8:[function(require,module,exports){
+},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":28,"./eventeditor/eventeditor.js":8,"./popup/popup.js":12,"./storymanager/storymanager.js":13,"./timeline/timeline.js":14}],8:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -819,6 +823,7 @@ module.exports = function(container) {
 
   this._SubtitleEditor = require("./mod-subtitleeditor.js");
   this._AudioEventEditor = require("./mod-audioeventeditor.js");
+  this._ActorEventEditor = require("./mod-actoreventeditor.js");
   this._EventsManager = require("./../../common/mod-eventsmanager.js");
 
   //--Variables--//
@@ -826,6 +831,7 @@ module.exports = function(container) {
   this.currentView = null;
   this.subtitleEditor = new this._SubtitleEditor(this);
   this.audioEventEditor = new this._AudioEventEditor(this);
+  this.actorEventEditor = new this._ActorEventEditor(this);
   this.eventsManager=new this._EventsManager();
 
   //--Elements--//
@@ -849,9 +855,15 @@ module.exports = function(container) {
       this._containerBody.innerHTML="";
       this.currentView = this.subtitleEditor;
       this._containerBody.appendChild(this.currentView._container);
-    } if(typeof timelineEvent.audiotrack=="string") {
+    } else if(typeof timelineEvent.audiotrack=="string") {
       //audiotrack
+      this.audioEventEditor.edit(timelineEvent);
       this.currentView = this.audioEventEditor;
+      this._containerBody.innerHTML="";
+      this._containerBody.appendChild(this.currentView._container);
+    } else if(typeof timelineEvent.actor=="string") {
+      this.actorEventEditor.edit(timelineEvent);
+      this.currentView = this.actorEventEditor;
       this._containerBody.innerHTML="";
       this._containerBody.appendChild(this.currentView._container);
     }
@@ -871,7 +883,157 @@ module.exports = function(container) {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./mod-audioeventeditor.js":9,"./mod-subtitleeditor.js":10}],9:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./mod-actoreventeditor.js":9,"./mod-audioeventeditor.js":10,"./mod-subtitleeditor.js":11}],9:[function(require,module,exports){
+module.exports = function(eventEditor) {
+
+  var thisobj = this;
+
+  //--Variables--//
+
+  this._eventEditor = eventEditor;
+  this.currentEvent = null;
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "audioevent-editor";
+  this._container.style.cssText = "padding:0.5em";
+  this._container.innerHTML = "Action ";
+  //container > action selector
+  this._actionSelect = document.createElement("select");
+  this._actionSelect.innerHTML = "<option value='movelin'>Linear Movement</option>"+
+                                  "<option value='movesin'>Sinusoid Movement</option>"+
+                                  "<option value='teleport'>Teleportation</option>"+
+                                  "<option value='fadein'>Fade In</option>"+
+                                  "<option value='fadeout'>Fade Out</option>"+
+                                  "<option value='fill'>Fill With Color</option>";
+  this._actionSelect.onchange = function() {thisobj._showActionProperties(thisobj._actionSelect.value);}
+  this._container.appendChild(this._actionSelect);
+  this._container.appendChild(document.createElement("hr"));
+  //container > properties container
+  this._propertiesContainer = document.createElement("div");
+  this._container.appendChild(this._propertiesContainer);
+  //
+  this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
+  this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
+  this._teleportProperties = new PropertyEditor([{name:"x", label:"Target X"}, {name:"y", label:"Target Y"}, {name:"z", label:"Target Z"}]);
+  this._fillProperties = new PropertyEditor([{name:"color", label:"Color (Hex with #)"}]);
+  this._fadeinProperties = new PropertyEditor([]);
+  this._fadeoutProperties = new PropertyEditor([]);
+
+  //--Functions--//
+
+  this.edit = function(timelineEvent) {
+    console.log(timelineEvent);
+    if(timelineEvent!=null && typeof timelineEvent.actor=="string") {
+      this.currentEvent = timelineEvent;
+      var currentAction = timelineEvent.action.type;
+      this._actionSelect.value = currentAction;
+      var propertiesObject = this._getActionProperties(currentAction);
+      if(currentAction=="movesin" || currentAction=="movelin") {
+        propertiesObject.setValue("tx", timelineEvent.action.params.tx);
+        propertiesObject.setValue("ty", timelineEvent.action.params.ty);
+      } else if(currentAction=="teleport") {
+        propertiesObject.setValue("x", timelineEvent.action.params.x);
+        propertiesObject.setValue("y", timelineEvent.action.params.y);
+        propertiesObject.setValue("z", timelineEvent.action.params.z);
+      } else if(currentAction=="fill") {
+        propertiesObject.setValue("color", timelineEvent.action.params.color);
+      }
+      this._showActionProperties(currentAction);
+    }
+  }
+
+  this._getActionProperties = function(action) {
+    if(action=="movelin") {
+      return this._movelinProperties;
+    } else if(action=="movesin") {
+      return this._movesinProperties;
+    } else if(action=="teleport") {
+      return this._teleportProperties;
+    } else if(action=="fill") {
+      return this._fillProperties;
+    } else if(action=="fadein") {
+      return this._fadeinProperties;
+    } else if(action=="fadeout") {
+      return this._fadeoutProperties;
+    }
+  }
+
+  this._showActionProperties = function(action) {
+    var propertiesObject = this._getActionProperties(action);
+    this._propertiesContainer.innerHTML = "";
+    this._propertiesContainer.appendChild(propertiesObject._container);
+  }
+
+  this.save = function() {
+    this.currentEvent.action.type = this._actionSelect.value;
+    var propertiesObject = this._getActionProperties(this.currentEvent.action.type);
+    propertiesObject.exportValues(this.currentEvent.action.params);
+    console.log(this.currentEvent);
+  }
+
+}
+
+function PropertyEditor(properties) {
+
+  thisobj = this;
+
+  //--Variables--//
+
+  this._inputs = [];
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "properties-editor";
+
+  //--Functions--//
+
+  this._init = function() {
+    for(var i=0; i<properties.length; i++) {
+      var input = this._createInput(properties[i].label, properties[i].name);
+      this._container.appendChild(input);
+    }
+  }
+
+  this._createInput = function(label, name) {
+    var labelElem = document.createElement("label");
+    labelElem.style.cssText = "display:block;margin-bottom:0.2em";
+    labelElem.innerHTML = label+" ";
+    var inputElem = document.createElement("input");
+    labelElem.appendChild(inputElem);
+
+    var inputObject = {
+      name: name,
+      element: inputElem
+    };
+    this._inputs.push(inputObject);
+
+    return labelElem;
+  }
+
+  this.setValue = function(name, value) {
+    for(var i=0; i<this._inputs.length; i++) {
+      if(this._inputs[i].name==name) {
+        this._inputs[i].element.value=value;
+        return;
+      }
+    }
+  }
+
+  this.exportValues = function(receiver) {
+    for(var i=0; i<this._inputs.length; i++) {
+      receiver[this._inputs[i].name] = this._inputs[i].element.value;
+    }
+  }
+
+  this._init();
+}
+
+},{}],10:[function(require,module,exports){
 module.exports = function(eventEditor) {
 
   var thisobj = this;
@@ -884,10 +1046,28 @@ module.exports = function(eventEditor) {
   //container
   this._container = document.createElement("div");
   this._container.className = "audioevent-editor";
+  this._container.style.cssText = "padding:0.5em";
+  this._container.innerHTML = "Action ";
+  //container > action selector
+  this._actionSelect = document.createElement("select");
+  this._actionSelect.innerHTML = "<option value='play'>Play</option><option value='stop'>Stop</option>";
+  this._container.appendChild(this._actionSelect);
+
+  this.edit = function(timelineEvent) {
+    console.log(timelineEvent);
+    if(timelineEvent!=null && typeof timelineEvent.action=="string") {
+      this.currentEvent = timelineEvent;
+      this._actionSelect.value = timelineEvent.action;
+    }
+  }
+
+  this.save = function() {
+    this.currentEvent.action = this._actionSelect.value;
+  }
 
 }
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 module.exports = function(eventEditor) {
 
   var thisobj = this;
@@ -999,7 +1179,7 @@ function SingleLanguageEditor(language, subtitle) {
 
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1116,7 +1296,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-resizedetector.js":5}],12:[function(require,module,exports){
+},{"./../../common/mod-resizedetector.js":5}],13:[function(require,module,exports){
 module.exports = function() {
   var thisobj = this;
 
@@ -1127,7 +1307,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-log.js":3}],13:[function(require,module,exports){
+},{"./../../common/mod-log.js":3}],14:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -1191,6 +1371,16 @@ module.exports = function(container) {
     newItem.startTime = startTime;
     newItem.endTime = endTime;
     this._items.push(newItem);
+  }
+
+  this.renameItem = function(id, name) {
+    for(var i=0; i<this._UIItems.length; i++) {
+      if(this._UIItems[i]._timelineEvent.id==id) {
+        this._UIItems[i]._timelineEvent.name = name;
+        this._UIItems[i]._labelElem.innerHTML = name;
+        return;
+      }
+    }
   }
 
   this.clear = function() {
@@ -1448,7 +1638,7 @@ function _TimelineDragHelper(element, onDrag) {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":15,"./tm-timeindicator.js":16}],14:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":16,"./tm-timeindicator.js":17}],15:[function(require,module,exports){
 module.exports = function(draggable, container, onDrag) {
 
   //--Variables--//
@@ -1514,7 +1704,7 @@ module.exports = function(draggable, container, onDrag) {
 
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 module.exports = function(timeline, timelineEvent, label) {
 
   var thisobj = this;
@@ -1659,7 +1849,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
 }
 
-},{"./tm-draghelper.js":14}],16:[function(require,module,exports){
+},{"./tm-draghelper.js":15}],17:[function(require,module,exports){
 module.exports = function(timeline) {
 
   var thisobj = this;
@@ -1713,7 +1903,7 @@ module.exports = function(timeline) {
 
 }
 
-},{"./tm-draghelper.js":14}],17:[function(require,module,exports){
+},{"./tm-draghelper.js":15}],18:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -1815,14 +2005,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -1990,7 +2180,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":22,"./dp-volumecontrol.js":26}],20:[function(require,module,exports){
+},{"./dp-languageselector.js":23,"./dp-volumecontrol.js":27}],21:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2025,7 +2215,7 @@ module.exports = function() {
 
 }
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -2082,7 +2272,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2113,7 +2303,7 @@ module.exports = function() {
 
 }
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -2143,7 +2333,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -2176,7 +2366,7 @@ module.exports={
 
 };
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -2210,7 +2400,7 @@ module.exports = function() {
 
 }
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -2271,7 +2461,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -2867,4 +3057,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":17,"./dp-constants.js":18,"./dp-controls.js":19,"./dp-drawqueue.js":20,"./dp-infobox.js":21,"./dp-messagesbox.js":23,"./dp-motions.js":24,"./dp-subtitlebox.js":25}]},{},[7]);
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":18,"./dp-constants.js":19,"./dp-controls.js":20,"./dp-drawqueue.js":21,"./dp-infobox.js":22,"./dp-messagesbox.js":24,"./dp-motions.js":25,"./dp-subtitlebox.js":26}]},{},[7]);

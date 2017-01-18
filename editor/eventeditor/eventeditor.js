@@ -6,6 +6,7 @@ module.exports = function(container) {
 
   this._SubtitleEditor = require("./mod-subtitleeditor.js");
   this._AudioEventEditor = require("./mod-audioeventeditor.js");
+  this._ActorEventEditor = require("./mod-actoreventeditor.js");
   this._EventsManager = require("./../../common/mod-eventsmanager.js");
 
   //--Variables--//
@@ -13,6 +14,7 @@ module.exports = function(container) {
   this.currentView = null;
   this.subtitleEditor = new this._SubtitleEditor(this);
   this.audioEventEditor = new this._AudioEventEditor(this);
+  this.actorEventEditor = new this._ActorEventEditor(this);
   this.eventsManager=new this._EventsManager();
 
   //--Elements--//
@@ -36,9 +38,15 @@ module.exports = function(container) {
       this._containerBody.innerHTML="";
       this.currentView = this.subtitleEditor;
       this._containerBody.appendChild(this.currentView._container);
-    } if(typeof timelineEvent.audiotrack=="string") {
+    } else if(typeof timelineEvent.audiotrack=="string") {
       //audiotrack
+      this.audioEventEditor.edit(timelineEvent);
       this.currentView = this.audioEventEditor;
+      this._containerBody.innerHTML="";
+      this._containerBody.appendChild(this.currentView._container);
+    } else if(typeof timelineEvent.actor=="string") {
+      this.actorEventEditor.edit(timelineEvent);
+      this.currentView = this.actorEventEditor;
       this._containerBody.innerHTML="";
       this._containerBody.appendChild(this.currentView._container);
     }

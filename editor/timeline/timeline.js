@@ -63,6 +63,16 @@ module.exports = function(container) {
     this._items.push(newItem);
   }
 
+  this.renameItem = function(id, name) {
+    for(var i=0; i<this._UIItems.length; i++) {
+      if(this._UIItems[i]._timelineEvent.id==id) {
+        this._UIItems[i]._timelineEvent.name = name;
+        this._UIItems[i]._labelElem.innerHTML = name;
+        return;
+      }
+    }
+  }
+
   this.clear = function() {
     this._items.length = 0;
     this._render();
