@@ -1,8 +1,8 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 //////////// AudioTrack ////////////
-//module.exports = function(player,name,url,volume) {
 module.exports = function(trackInfo, onload, assetsPath) {
   var thisobj=this;
+  this._origin = trackInfo;
   this._name="";
   this._volume=1;
   this._assetsPath=(typeof assetsPath=="undefined")?"":assetsPath;
@@ -287,6 +287,7 @@ module.exports = function() {
   this._loadCounter=0;
   this._totalAssets=0;
 
+  this.format=null;
   this.title="Untitled";
   this.width=0;
   this.height=0;
@@ -348,17 +349,23 @@ module.exports = function() {
     request.send();
   }
 
-  /** Reads the parsed json response and prepares the assets **/
+  this.loadFromObject = function(story) {
+    this._handleResponse(story);
+  }
+
+  /** Reads the parsed json and prepares the assets **/
   this._handleResponse=function(story) {
     this._loadCounter=0;
 
     //First things first. Check the story format
     if(typeof story.format=="undefined" || story.format!="p316") {
       //TODO unsupported story! handle this event
+      this.log.error("Unsupported format!", this);
       return;
     }
 
     this._totalAssets=story.actors.length+story.audiotracks.length
+    this.format = story.format;
     this.title=story.title;
     this.width=story.width;
     this.height=story.height;
@@ -502,6 +509,7 @@ module.exports = function() {
 
 //////////// MovableObject ////////////
 function MovableObject() {
+  this._origin = null;
   this.name = null;
   this.url = null;
   this.image = null;
@@ -522,6 +530,7 @@ function MovableObject() {
   }
 
   this.initWithActor = function(actor, loadHandler, assetsPath) {
+    this._origin = actor;
     this.name = actor.name;
     this.url = actor.url;
     this.startX = actor.x;
@@ -561,6 +570,7 @@ drama.Editor = function(containerId) {
   //--prototypes & includes--//
   this.log = require("./../common/mod-log.js");
   this.StoryManager = require("./storymanager/storymanager.js");
+  this.StorageHelper = require("./storagehelper/storagehelper.js");
   this.TimelineEditor = require("./timeline/timeline.js");
   this.EventEditor = require("./eventeditor/eventeditor.js");
   this.Popup = require("./popup/popup.js");
@@ -574,6 +584,7 @@ drama.Editor = function(containerId) {
   this.timelineEditor = new this.TimelineEditor();
   this.eventEditor = new this.EventEditor();
   this.popup = new this.Popup();
+  this.storageHelper = new this.StorageHelper();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -615,12 +626,14 @@ drama.Editor = function(containerId) {
     this.toolbar = {
       name: "topbar",
     	items: [
-    		{ type: 'check',  id: 'item1', caption: 'Check', img: 'icon-page', checked: true },
-    		{ type: 'break',  id: 'break0' },
-    		{ type: 'menu',   id: 'item2', caption: 'Drop Down', img: 'icon-folder', items: [
-    			{ text: 'Item 1', icon: 'icon-page' },
-    			{ text: 'Item 2', icon: 'icon-page' },
-    			{ text: 'Item 3', value: 'Item Three', icon: 'icon-page' }
+        { type: 'button', id: 'new-story', text: 'New', img: 'icon-page' },
+    		{ type: 'menu',   id: 'save-story', caption: 'Save', img: 'icon-page', items: [
+    			{ text: 'to browser storage', id: 'local-storage'},
+    			{ text: 'to file', id: 'export'}
+    		]},
+        { type: 'menu',   id: 'load-story', caption: 'Load', img: 'icon-page', items: [
+    			{ text: 'from browser storage', id: 'local-storage'},
+    			{ text: 'from URL', id: 'url'}
     		]},
         { type: 'break', id: 'break1' },
         { type: 'check', id: 'playback-ctls-play', text: 'Play', onClick: function(event){
@@ -649,6 +662,28 @@ drama.Editor = function(containerId) {
         if(event.item.id=="playback-ctls-subtitles" && event.subItem!=null) {
           thisobj.player.setLanguage(event.subItem.langIndex);
           w2ui["layout_top_toolbar"].set("playback-ctls-subtitles", {caption:event.subItem.value});
+        }
+        //Save
+        else if(event.item.id=="save-story" && event.subItem!=null) {
+          if(event.subItem.id=="local-storage") {
+            //local storage
+            thisobj.storageHelper.save(thisobj.player.story);
+          } else if(event.subItem.id=="export") {
+            //export
+            thisobj.storageHelper.export(thisobj.player.story);
+          }
+        }
+        //Load
+        else if(event.item.id=="load-story" && event.subItem!=null) {
+          if(event.subItem.id=="local-storage") {
+            //local storage
+            var story = thisobj.storageHelper.load();
+            thisobj.player.loadStory(story);
+          } else if(event.subItem.id=="url") {
+            //url
+            var storyURL = prompt("Enter a story URL");
+            if(storyURL!=null) {thisobj.player.loadStory(storyURL);}
+          }
         }
       }
     };
@@ -814,7 +849,7 @@ drama.Editor = function(containerId) {
 
 }
 
-},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":28,"./eventeditor/eventeditor.js":8,"./popup/popup.js":12,"./storymanager/storymanager.js":13,"./timeline/timeline.js":14}],8:[function(require,module,exports){
+},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":29,"./eventeditor/eventeditor.js":8,"./popup/popup.js":12,"./storagehelper/storagehelper.js":13,"./storymanager/storymanager.js":14,"./timeline/timeline.js":15}],8:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -1298,6 +1333,97 @@ module.exports = function() {
 
 },{"./../../common/mod-resizedetector.js":5}],13:[function(require,module,exports){
 module.exports = function() {
+
+  var thisobj = this;
+
+  //--Prototypes & Includes--//
+  this.log = require("./../../common/mod-log.js");
+
+  //--Variables--//
+
+  this._logName = "Storage Helper";
+  this._localStoryKey = "story";
+  // this._visible = false;
+  // this._okHandler = null;
+  // this._cancelHandler = null;
+  // this.resizeDetector = new this._ResizeDetector();
+  // this._defaultKeyDownHandler = null;
+
+  //--Elements--//
+  this._exportAnchor = document.createElement("a");
+  this._exportAnchor.setAttribute("download", "story.json");
+
+  //--Functions--//
+
+  this.save = function(story) {
+    if(typeof(Storage)=="undefined") {
+      this.log.error("Web Storage is not supported by this browser!", this);
+      return;
+    }
+
+    if(story==null) {
+      localStorage.removeItem(this._localStoryKey);
+      return;
+    }
+
+    var serializedStory = this._serializeStory(story);
+    localStorage.setItem(this._localStoryKey, serializedStory);
+    this.log.message("Story saved to local storage.", this);
+  }
+
+  this.load = function() {
+    var story = localStorage.getItem(this._localStoryKey);
+    if(story!=null) {
+      story = JSON.parse(story);
+      this.log.message("Retrieved story from local storage.", this);
+    } else {
+      this.log.warning("No story found in the local storage.", this);
+    }
+    return story;
+  }
+
+  this.export = function(story) {
+    var serializedStory = "data:text/json;charset=utf-8,";
+    serializedStory += this._serializeStory(story);
+    var encodedStory = encodeURI(serializedStory);
+    console.log(encodedStory);
+
+    this._exportAnchor.setAttribute("href", encodedStory);
+    this._exportAnchor.click();
+    this.log.message("Story exported.", this);
+  }
+
+  this._serializeStory = function(story) {
+    var nakedStory = {
+      format: story.format,
+      title: story.title,
+      width: story.width,
+      height: story.height,
+      actors: [],
+      audiotracks: [],
+      timeline: story.timeline
+    };
+
+    for(var i=0; i<story.actors.length; i++) {
+      if(story.actors[i]._origin!=null) {
+        nakedStory.actors.push(story.actors[i]._origin);
+      }
+    }
+
+    for(var i=0; i<story.audiotracks.length; i++) {
+      if(story.audiotracks[i]._origin!=null) {
+        nakedStory.audiotracks.push(story.audiotracks[i]._origin);
+      }
+    }
+
+    var serializedStory = JSON.stringify(nakedStory);
+    return serializedStory;
+  }
+
+}
+
+},{"./../../common/mod-log.js":3}],14:[function(require,module,exports){
+module.exports = function() {
   var thisobj = this;
 
   //prototypes
@@ -1307,7 +1433,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-log.js":3}],14:[function(require,module,exports){
+},{"./../../common/mod-log.js":3}],15:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -1638,7 +1764,7 @@ function _TimelineDragHelper(element, onDrag) {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":16,"./tm-timeindicator.js":17}],15:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":17,"./tm-timeindicator.js":18}],16:[function(require,module,exports){
 module.exports = function(draggable, container, onDrag) {
 
   //--Variables--//
@@ -1704,7 +1830,7 @@ module.exports = function(draggable, container, onDrag) {
 
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 module.exports = function(timeline, timelineEvent, label) {
 
   var thisobj = this;
@@ -1849,7 +1975,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
 }
 
-},{"./tm-draghelper.js":15}],17:[function(require,module,exports){
+},{"./tm-draghelper.js":16}],18:[function(require,module,exports){
 module.exports = function(timeline) {
 
   var thisobj = this;
@@ -1903,7 +2029,7 @@ module.exports = function(timeline) {
 
 }
 
-},{"./tm-draghelper.js":15}],18:[function(require,module,exports){
+},{"./tm-draghelper.js":16}],19:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -2005,14 +2131,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -2180,7 +2306,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":23,"./dp-volumecontrol.js":27}],21:[function(require,module,exports){
+},{"./dp-languageselector.js":24,"./dp-volumecontrol.js":28}],22:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2215,7 +2341,7 @@ module.exports = function() {
 
 }
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -2272,7 +2398,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2303,7 +2429,7 @@ module.exports = function() {
 
 }
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -2333,7 +2459,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -2366,7 +2492,7 @@ module.exports={
 
 };
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -2400,7 +2526,7 @@ module.exports = function() {
 
 }
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -2461,7 +2587,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -2502,6 +2628,7 @@ module.exports = function(containerId, options) {
   this.loadcounter=0;
   this.loaded=false;
   this.loadtimer;
+  this._playbackRate = 1.0;
   this.time=0; //primary time variable (ms)
   this.mtime=0; //secondary time variable for maintaining motion when in soft-pause mode (ms)
   this.mtimesec=0; //secondary time in seconds
@@ -2564,7 +2691,7 @@ module.exports = function(containerId, options) {
 
   //returns the current time
   this._now = function() {
-    return new Date().getTime()*1;
+    return new Date().getTime()*this._playbackRate;
   }
 
   //player & story dimensions
@@ -2625,8 +2752,8 @@ module.exports = function(containerId, options) {
   });
 
   //loadStory()
-  //Loads a new story to the player
-  this.loadStory=function(url) {
+  //Loads a new story to the player (url or story object)
+  this.loadStory=function(source) {
     this.eventsManager.callHandlers("loading");
     this.story=new this.Story();
     this.story.onprogress=this.refreshProgress;
@@ -2635,7 +2762,12 @@ module.exports = function(containerId, options) {
       thisobj.setVolume(thisobj.volume);
       thisobj.eventsManager.callHandlers("ready");
     }
-    this.story.load(url);
+
+    if(typeof source=="string") {
+      this.story.load(source);
+    } else {
+      this.story.loadFromObject(source);
+    }
 
     this.time=0;
     this.mtime=0;
@@ -3057,4 +3189,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":18,"./dp-constants.js":19,"./dp-controls.js":20,"./dp-drawqueue.js":21,"./dp-infobox.js":22,"./dp-messagesbox.js":24,"./dp-motions.js":25,"./dp-subtitlebox.js":26}]},{},[7]);
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":19,"./dp-constants.js":20,"./dp-controls.js":21,"./dp-drawqueue.js":22,"./dp-infobox.js":23,"./dp-messagesbox.js":25,"./dp-motions.js":26,"./dp-subtitlebox.js":27}]},{},[7]);

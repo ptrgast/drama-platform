@@ -12,6 +12,7 @@ module.exports = function() {
   this._loadCounter=0;
   this._totalAssets=0;
 
+  this.format=null;
   this.title="Untitled";
   this.width=0;
   this.height=0;
@@ -73,17 +74,23 @@ module.exports = function() {
     request.send();
   }
 
-  /** Reads the parsed json response and prepares the assets **/
+  this.loadFromObject = function(story) {
+    this._handleResponse(story);
+  }
+
+  /** Reads the parsed json and prepares the assets **/
   this._handleResponse=function(story) {
     this._loadCounter=0;
 
     //First things first. Check the story format
     if(typeof story.format=="undefined" || story.format!="p316") {
       //TODO unsupported story! handle this event
+      this.log.error("Unsupported format!", this);
       return;
     }
 
     this._totalAssets=story.actors.length+story.audiotracks.length
+    this.format = story.format;
     this.title=story.title;
     this.width=story.width;
     this.height=story.height;
@@ -227,6 +234,7 @@ module.exports = function() {
 
 //////////// MovableObject ////////////
 function MovableObject() {
+  this._origin = null;
   this.name = null;
   this.url = null;
   this.image = null;
@@ -247,6 +255,7 @@ function MovableObject() {
   }
 
   this.initWithActor = function(actor, loadHandler, assetsPath) {
+    this._origin = actor;
     this.name = actor.name;
     this.url = actor.url;
     this.startX = actor.x;

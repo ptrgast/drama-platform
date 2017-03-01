@@ -1,7 +1,7 @@
 //////////// AudioTrack ////////////
-//module.exports = function(player,name,url,volume) {
 module.exports = function(trackInfo, onload, assetsPath) {
   var thisobj=this;
+  this._origin = trackInfo;
   this._name="";
   this._volume=1;
   this._assetsPath=(typeof assetsPath=="undefined")?"":assetsPath;

@@ -7,6 +7,7 @@ drama.Editor = function(containerId) {
   //--prototypes & includes--//
   this.log = require("./../common/mod-log.js");
   this.StoryManager = require("./storymanager/storymanager.js");
+  this.StorageHelper = require("./storagehelper/storagehelper.js");
   this.TimelineEditor = require("./timeline/timeline.js");
   this.EventEditor = require("./eventeditor/eventeditor.js");
   this.Popup = require("./popup/popup.js");
@@ -20,6 +21,7 @@ drama.Editor = function(containerId) {
   this.timelineEditor = new this.TimelineEditor();
   this.eventEditor = new this.EventEditor();
   this.popup = new this.Popup();
+  this.storageHelper = new this.StorageHelper();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -61,12 +63,14 @@ drama.Editor = function(containerId) {
     this.toolbar = {
       name: "topbar",
     	items: [
-    		{ type: 'check',  id: 'item1', caption: 'Check', img: 'icon-page', checked: true },
-    		{ type: 'break',  id: 'break0' },
-    		{ type: 'menu',   id: 'item2', caption: 'Drop Down', img: 'icon-folder', items: [
-    			{ text: 'Item 1', icon: 'icon-page' },
-    			{ text: 'Item 2', icon: 'icon-page' },
-    			{ text: 'Item 3', value: 'Item Three', icon: 'icon-page' }
+        { type: 'button', id: 'new-story', text: 'New', img: 'icon-page' },
+    		{ type: 'menu',   id: 'save-story', caption: 'Save', img: 'icon-page', items: [
+    			{ text: 'to browser storage', id: 'local-storage'},
+    			{ text: 'to file', id: 'export'}
+    		]},
+        { type: 'menu',   id: 'load-story', caption: 'Load', img: 'icon-page', items: [
+    			{ text: 'from browser storage', id: 'local-storage'},
+    			{ text: 'from URL', id: 'url'}
     		]},
         { type: 'break', id: 'break1' },
         { type: 'check', id: 'playback-ctls-play', text: 'Play', onClick: function(event){
@@ -95,6 +99,28 @@ drama.Editor = function(containerId) {
         if(event.item.id=="playback-ctls-subtitles" && event.subItem!=null) {
           thisobj.player.setLanguage(event.subItem.langIndex);
           w2ui["layout_top_toolbar"].set("playback-ctls-subtitles", {caption:event.subItem.value});
+        }
+        //Save
+        else if(event.item.id=="save-story" && event.subItem!=null) {
+          if(event.subItem.id=="local-storage") {
+            //local storage
+            thisobj.storageHelper.save(thisobj.player.story);
+          } else if(event.subItem.id=="export") {
+            //export
+            thisobj.storageHelper.export(thisobj.player.story);
+          }
+        }
+        //Load
+        else if(event.item.id=="load-story" && event.subItem!=null) {
+          if(event.subItem.id=="local-storage") {
+            //local storage
+            var story = thisobj.storageHelper.load();
+            thisobj.player.loadStory(story);
+          } else if(event.subItem.id=="url") {
+            //url
+            var storyURL = prompt("Enter a story URL");
+            if(storyURL!=null) {thisobj.player.loadStory(storyURL);}
+          }
         }
       }
     };

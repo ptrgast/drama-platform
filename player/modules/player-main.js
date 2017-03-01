@@ -38,6 +38,7 @@ module.exports = function(containerId, options) {
   this.loadcounter=0;
   this.loaded=false;
   this.loadtimer;
+  this._playbackRate = 1.0;
   this.time=0; //primary time variable (ms)
   this.mtime=0; //secondary time variable for maintaining motion when in soft-pause mode (ms)
   this.mtimesec=0; //secondary time in seconds
@@ -100,7 +101,7 @@ module.exports = function(containerId, options) {
 
   //returns the current time
   this._now = function() {
-    return new Date().getTime()*1;
+    return new Date().getTime()*this._playbackRate;
   }
 
   //player & story dimensions
@@ -161,8 +162,8 @@ module.exports = function(containerId, options) {
   });
 
   //loadStory()
-  //Loads a new story to the player
-  this.loadStory=function(url) {
+  //Loads a new story to the player (url or story object)
+  this.loadStory=function(source) {
     this.eventsManager.callHandlers("loading");
     this.story=new this.Story();
     this.story.onprogress=this.refreshProgress;
@@ -171,7 +172,12 @@ module.exports = function(containerId, options) {
       thisobj.setVolume(thisobj.volume);
       thisobj.eventsManager.callHandlers("ready");
     }
-    this.story.load(url);
+
+    if(typeof source=="string") {
+      this.story.load(source);
+    } else {
+      this.story.loadFromObject(source);
+    }
 
     this.time=0;
     this.mtime=0;
