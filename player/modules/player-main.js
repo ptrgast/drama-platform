@@ -30,7 +30,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.32.3";
+  this.PLAYER_VERSION = "0.33.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -173,15 +173,15 @@ module.exports = function(containerId, options) {
       thisobj.eventsManager.callHandlers("ready");
     }
 
+    this.time=0;
+    this.mtime=0;
+    this.loaded=false;
+
     if(typeof source=="string") {
       this.story.load(source);
     } else {
       this.story.loadFromObject(source);
     }
-
-    this.time=0;
-    this.mtime=0;
-    this.loaded=false;
 
     this.drawQueue.add(this.story.stagecurtain);
     this.drawQueue.add(this.story.viewport);
@@ -194,6 +194,7 @@ module.exports = function(containerId, options) {
     if(this.started!=2) {this.eventsManager.callHandlers("play");}
     this.started=2;
     if(this.loaded) {this.notificationbox.set();}
+    else {this.log.warning("Story not loaded!");}
     this.starttime=this._now()-this.time;
     this.mstarttime=this._now()-this.mtime;
     //play audio tracks
@@ -360,6 +361,10 @@ module.exports = function(containerId, options) {
     this.started=currentState;
   }
 
+  this.isPlaying = function() {
+    return this.started==2;
+  }
+
   //setVolume()
   //Sets the master volume of the player
   this.setVolume=function(volume, triggerEvent) {
@@ -381,7 +386,7 @@ module.exports = function(containerId, options) {
     var progress=assetsLoaded/totalAssets*100|0;
     thisobj.notificationbox.set("loading... "+progress+"%");
     thisobj.log.message(assetsLoaded+"/"+totalAssets, thisobj);
-    if(assetsLoaded==totalAssets) {
+    if(assetsLoaded>=totalAssets) {
       thisobj.loaded=true;
       if(thisobj.started==0) {thisobj.notificationbox.set(thisobj.story.title);}
 	  else {thisobj.notificationbox.set();}
@@ -406,11 +411,11 @@ module.exports = function(containerId, options) {
         //timeline
         while(this.tli<this.story.timeline.length&&this.time>=this.story.timeline[this.tli].time) {
           //this.info.print("timeline action at "+this.time);
-          if(this.story.timeline[this.tli].action=="show") {
+          if(typeof this.story.timeline[this.tli].action=="object" && this.story.timeline[this.tli].action!=null && this.story.timeline[this.tli].action.type=="show") {
             //add the actor to the drawing queue according to the z factor
             var actor=this.story.actors[this.story.timeline[this.tli].index];
             this.drawQueue.add(actor);
-          } else if(this.story.timeline[this.tli].action=="hide") {
+          } else if(typeof this.story.timeline[this.tli].action=="object" && this.story.timeline[this.tli].action!=null && this.story.timeline[this.tli].action.type=="hide") {
             //remove the actor from the drawing queue
             var actor=this.story.actors[this.story.timeline[this.tli].index];
             this.drawQueue.remove(actor);
@@ -428,9 +433,6 @@ module.exports = function(containerId, options) {
           } else if(this.story.timeline[this.tli].action!=null&&this.story.timeline[this.tli].audiotrack!=null) {
             var track=this.story.audiotracks[this.story.timeline[this.tli].index];
             track.action=this.story.timeline[this.tli].action;
-            if(track.action.type==ramp) { //TODO delete this
-              this.log.message("Ramp event",this);
-            }
           } else if(this.story.timeline[this.tli].subtitle!=null) {
             var subtitle=this.story.timeline[this.tli].subtitle;
             var lang=this.story.languages[this.currentLanguage];

@@ -1,12 +1,12 @@
-#Drama Platform
+# Drama Platform
 
 The Drama Platform allows you to create animated stories for the web by utilizing the canvas and the audio elements that were introduced by HTML5.
 
-##Examples
+## Examples
 
 You can find an example story here http://ptrgast.com/drama/.
 
-##Development Prerequisites
+## Development Prerequisites
 
 The Drama Platform scripts are divided in multiple files to ease the development process. In order to make changes to the source you will need the following tools:
 

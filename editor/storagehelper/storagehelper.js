@@ -9,11 +9,6 @@ module.exports = function() {
 
   this._logName = "Storage Helper";
   this._localStoryKey = "story";
-  // this._visible = false;
-  // this._okHandler = null;
-  // this._cancelHandler = null;
-  // this.resizeDetector = new this._ResizeDetector();
-  // this._defaultKeyDownHandler = null;
 
   //--Elements--//
   this._exportAnchor = document.createElement("a");
@@ -52,8 +47,8 @@ module.exports = function() {
     var serializedStory = "data:text/json;charset=utf-8,";
     serializedStory += this._serializeStory(story);
     var encodedStory = encodeURI(serializedStory);
-    console.log(encodedStory);
 
+    this._exportAnchor.setAttribute("download", this._createFilename(story));
     this._exportAnchor.setAttribute("href", encodedStory);
     this._exportAnchor.click();
     this.log.message("Story exported.", this);
@@ -84,6 +79,19 @@ module.exports = function() {
 
     var serializedStory = JSON.stringify(nakedStory);
     return serializedStory;
+  }
+
+  this._createFilename = function(story) {
+    var title = story.title;
+    var filename = "";
+    for(var i=0; i<title.length; i++) {
+      var letter = title[i];
+      if(letter<"A" && letter>"z" && letter<"0" && letter>"9") {
+        letter = "-";
+      }
+      filename += letter;
+    }
+    return filename+".json";
   }
 
 }

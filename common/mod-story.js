@@ -83,7 +83,9 @@ module.exports = function() {
     this._loadCounter=0;
 
     //First things first. Check the story format
-    if(typeof story.format=="undefined" || story.format!="p316") {
+    if(story.format=="p316") {
+      story = this.convertP316toP417(story);
+    } else if(typeof story.format=="undefined" || story.format!="p417") {
       //TODO unsupported story! handle this event
       this.log.error("Unsupported format!", this);
       return;
@@ -91,9 +93,9 @@ module.exports = function() {
 
     this._totalAssets=story.actors.length+story.audiotracks.length
     this.format = story.format;
-    this.title=story.title;
-    this.width=story.width;
-    this.height=story.height;
+    this.title = story.title;
+    this.width = story.width;
+    this.height = story.height;
 
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
@@ -128,6 +130,20 @@ module.exports = function() {
     this._sortTimeline();
 
     //Map names to array indices
+    this._mapNamesToIndeces();
+
+    this._findLanguages();
+
+    if(this._totalAssets==0) {this._assetLoaded();} //For empty stories
+  }
+
+  this._sortTimeline = function() {
+    this.timeline.sort(function(event1,event2) {
+      return event1.time-event2.time;
+    });
+  }
+
+  this._mapNamesToIndeces = function() {
     for(var i=0;i<this.timeline.length;i++) {
       //actors
       if(typeof this.timeline[i].actor!="undefined") {
@@ -146,14 +162,6 @@ module.exports = function() {
         }
       }
     }
-
-    this._findLanguages();
-  }
-
-  this._sortTimeline = function() {
-    this.timeline.sort(function(event1,event2) {
-      return event1.time-event2.time;
-    });
   }
 
   //Resets actors to their initial positions
@@ -170,6 +178,31 @@ module.exports = function() {
     for(var i=0;i<this.audiotracks.length;i++) {
       this.audiotracks[i].stop();
     }
+  }
+
+  //Convert P316 stories to the latest format P417
+  this.convertP316toP417 = function(story) {
+    for(var i=0; i<story.timeline.length; i++) {
+      var event = story.timeline[i];
+      if(typeof event.action=="string" && (event.action=="show" || event.action=="hide")) {
+        var action = {type: event.action};
+        story.timeline[i].action = action;
+      }
+    }
+    story.format = "p417";
+    this.log.message("Story converted from P316 to P417.", thisobj);
+    return story;
+  }
+
+  //Return the maximum ID assigned to a timeline event
+  this.getMaxId = function() {
+    var maxId = 0;
+    for(var i=0; i<this.timeline.length; i++) {
+      if(this.timeline[i]._id>maxId) {
+        maxId = this.timeline[i]._id;
+      }
+    }
+    return maxId;
   }
 
   //returns the duration of the story
@@ -230,6 +263,67 @@ module.exports = function() {
     else {return false;}
   }
 
+  this.addActor = function(actor) {
+    var newActor = new MovableObject().initWithActor(actor, function() {}, this._assetsPath);
+    this.actors.push(newActor);
+  }
+
+  /** This function removes an 'Actor' from the story **/
+  this.removeActor = function(name) {
+    //Remove from the actors list
+    for(var i=0; i<this.actors.length; i++) {
+      if(this.actors[i].name==name) {
+        this.actors.splice(i, 1);
+        break;
+      }
+    }
+    //Remove from timeline
+    for(var i=0; i<this.timeline.length; i++) {
+      var event = this.timeline[i];
+      if(typeof(event.actor)!="undefined" && event.actor==name) {
+        this.timeline.splice(i, 1);
+        i=0; //start again
+      }
+    }
+    //Indeces changed!
+    this._mapNamesToIndeces();
+  }
+
+  this.addAudiotrack = function(audiotrack) {
+    var newAudiotrack = new this.AudioTrack(audiotrack, function() {}, "");
+    this.audiotracks.push(newAudiotrack);
+  }
+
+  /** This function removes an 'Audiotrack' from the story **/
+  this.removeAudiotrack = function(name) {
+    //Remove from the actors list
+    for(var i=0; i<this.audiotracks.length; i++) {
+      if(this.audiotracks[i].name==name) {
+        this.audiotracks.splice(i, 1);
+        break;
+      }
+    }
+    //Remove from timeline
+    for(var i=0; i<this.timeline.length; i++) {
+      var event = this.timeline[i];
+      if(typeof(event.audiotrack)!="undefined" && event.audiotrack==name) {
+        this.timeline.splice(i, 1);
+        i=0; //start again
+      }
+    }
+    //Indeces changed!
+    this._mapNamesToIndeces();
+  }
+
+  this.removeTimelineEvent = function(eventId) {
+    for(var i=0; i<this.timeline.length; i++) {
+      if(this.timeline[i]._id==eventId) {
+        this.timeline.splice(i, 1);
+        return;
+      }
+    }
+  }
+
 }
 
 //////////// MovableObject ////////////
@@ -271,11 +365,21 @@ function MovableObject() {
     this.image.src=assetsPath+actor.url;
     //add the motion object
     if(typeof actor.motion=="undefined") {
-      this.motion = {"type":null,"freq":0,"x":0,"y":0,"r":0};
+      this.resetMotion();
     } else {
       this.motion = actor.motion;
     }
     return this;
+  }
+
+  this.changeImage = function(newImage, assetsPath) {
+    if(typeof assetsPath=="undefined") {assetsPath="";}
+    this.url = newImage;
+    this.image.src = assetsPath+this.url;
+  }
+
+  this.resetMotion = function() {
+    this.motion = {"type":null,"freq":0,"x":0,"y":0,"r":0};
   }
 
   this.resetPosition =  function() {

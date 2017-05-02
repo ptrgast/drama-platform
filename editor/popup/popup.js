@@ -12,6 +12,7 @@ module.exports = function() {
   this._cancelHandler = null;
   this.resizeDetector = new this._ResizeDetector();
   this._defaultKeyDownHandler = null;
+  this._buttons = [];
 
   //--Elements--//
 
@@ -42,15 +43,6 @@ module.exports = function() {
   this._footer = document.createElement("div");
   this._footer.style.cssText ="padding:0.5em; text-align:right";
   this._windowElem.appendChild(this._footer);
-  //container > window > footer > Cancel
-  this._cancelButton = document.createElement("button");
-  this._cancelButton.style.cssText = "margin-right:0.5em";
-  this._cancelButton.innerHTML = "Cancel";
-  this._footer.appendChild(this._cancelButton);
-  //container > window > footer > ΟΚ
-  this._okButton = document.createElement("button");
-  this._okButton.innerHTML = "OK";
-  this._footer.appendChild(this._okButton);
 
   //--Functions--//
 
@@ -67,8 +59,11 @@ module.exports = function() {
   this.resizeDetector.watchElement(this._windowElem);
   this._windowElem.onresize = function() {thisobj._positionWindow();}
 
-  this.show = function(title, element, width, onOk, onCancel) {
+  this.show = function(title, element, width, buttons) {
+    if(this._visible==true) {this.hide();}
     this._visible = true;
+
+    window._dramaBlockGlobalKeys = true;
 
     this._titleElem.innerHTML = title;
     this._bodyElem.innerHTML = "";
@@ -80,6 +75,18 @@ module.exports = function() {
     this._windowElem.style.width = width+"px";
     this._positionWindow();
 
+    if(typeof buttons.length=="number") {
+      for(var i=0; i<buttons.length; i++) {
+        var button = document.createElement("button");
+        button.handler = buttons[i].handler;
+        button.addEventListener('click', buttons[i].handler);
+        button.style.marginLeft = "0.5em";
+        button.innerHTML = buttons[i].name;
+        this._footer.appendChild(button);
+        this._buttons.push(button);
+      }
+    }
+
     if(typeof onOk=="function") {this._okHandler = onOk;}
     if(typeof onCancel=="function") {this._cancelHandler = onCancel;}
 
@@ -88,28 +95,36 @@ module.exports = function() {
   }
 
   this.hide = function() {
+    window._dramaBlockGlobalKeys = false;
     this._visible = false;
     this._container.style.display = "none";
     window.onkeydown = this._defaultKeyDownHandler;
+    for(var i=0; i<this._buttons.length; i++) {
+      var button = this._buttons[i];
+      button.removeEventListener('click', button.handler);
+      button.remove();
+    }
+    this._buttons = [];
   }
 
   this._onKeyDown = function(event) {
     if(event.keyCode==27) {
-      thisobj._onCancel();
+      // thisobj._onCancel();
+      thisobj.hide();
     }
     event.stopPropagation();
   }
 
-  this._onOK = function() {
-    this.hide();
-    if(typeof this._okHandler=="function") {this._okHandler();}
-  }
-  this._okButton.onclick = function() {thisobj._onOK();}
-
-  this._onCancel = function() {
-    this.hide();
-    if(typeof this._cancelHandler=="function") {this._cancelHandler();}
-  }
-  this._cancelButton.onclick = function() {thisobj._onCancel();}
+  // this._onOK = function() {
+  //   this.hide();
+  //   if(typeof this._okHandler=="function") {this._okHandler();}
+  // }
+  // this._okButton.onclick = function() {thisobj._onOK();}
+  //
+  // this._onCancel = function() {
+  //   this.hide();
+  //   if(typeof this._cancelHandler=="function") {this._cancelHandler();}
+  // }
+  // this._cancelButton.onclick = function() {thisobj._onCancel();}
 
 }

@@ -73,6 +73,38 @@ module.exports = function(container) {
     }
   }
 
+  this.deleteItem = function(id) {
+    for(var i=0; i<this._UIItems.length; i++) {
+      if(this._UIItems[i]._timelineEvent.id==id) {
+        this._UIItems[i]._container.remove();
+        this._UIItems.splice(i,1);
+        break;
+      }
+    }
+    for(var i=0; i<this._items.length; i++) {
+      if(this._items[i].id==id) {
+        this._items.splice(i,1);
+        break;
+      }
+    }
+  }
+
+  this.renameGroup = function(group, newName) {
+    var items = this._getGroupItems(group);
+    for(var i=0; i<items.length; i++) {
+      items[i].group = newName;
+    }
+    this._inflateGroups();
+  }
+
+  this.deleteGroup = function(group) {
+    var items = this._getGroupItems(group);
+    for(var i=0; i<items.length; i++) {
+      this.deleteItem(items[i].id);
+    }
+    this._inflateGroups();
+  }
+
   this.clear = function() {
     this._items.length = 0;
     this._render();
@@ -223,21 +255,41 @@ module.exports = function(container) {
   }
 
   this._inflateGroups = function() {
+    var tmpGroups = this._eventsContainer.getElementsByClassName("group");
+    for(var i=0; i<tmpGroups.length; i++) {
+      tmpGroups[i].removeEventListener("dblclick", this._onGroupDoubleClick);
+      tmpGroups[i].remove();
+    }
     this._eventsContainer.innerHTML = "";
 
     var groups = this._getGroups();
+
+    var addGroupLink = document.createElement("a");
+    addGroupLink.innerHTML = "(+) Add&hellip;";
+    addGroupLink.style.cssText = "display:block;background-color:#333;color:white;text-align:center";
+    addGroupLink.setAttribute("href", "javascript:");
+    addGroupLink.onclick = function() {thisobj.eventsManager.callHandlers("addtimelinegroup");}
+    groups.push(addGroupLink);
 
     //add groups
     for(var i=0;i<groups.length;i++) {
       var groupElem = document.createElement("div");
       groupElem.className = "group";
       groupElem.style.cssText = "position:relative;min-height:1.2em";
+      groupElem.groupName = groups[i];
+      if(typeof groups[i]=="string") {
+        groupElem.addEventListener("dblclick", this._onGroupDoubleClick);
+      }
 
       //add group label
       var groupLabel = document.createElement("div");
       groupLabel.className = "group-label";
       groupLabel.style.cssText = "position:absolute;top:0;left:"+(-this._groupLabelsWidth)+"px;width:"+this._groupLabelsWidth+"px;z-index:5";
-      groupLabel.innerHTML = "&nbsp;&nbsp;"+groups[i];
+      if(typeof groups[i]=="object") {
+        groupLabel.appendChild(groups[i]);
+      } else {
+        groupLabel.innerHTML = "&nbsp;&nbsp;"+groups[i];
+      }
       groupElem.appendChild(groupLabel);
 
       //add events
@@ -253,6 +305,13 @@ module.exports = function(container) {
       this._eventsContainer.appendChild(groupElem);
     }
 
+  }
+
+  this._onGroupDoubleClick = function(event) {
+    //console.log(this.groupName, clickTime);
+    event.stopPropagation();
+    var clickTime = thisobj._viewportStartTime+(event.clientX-thisobj._groupLabelsWidth)/thisobj._viewportScale*thisobj._viewportResolution;
+    thisobj.eventsManager.callHandlers("addevent", {group:this.groupName, time:clickTime});
   }
 
   this.setCurrentTime = function(newTime) {

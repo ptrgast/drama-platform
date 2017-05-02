@@ -358,7 +358,9 @@ module.exports = function() {
     this._loadCounter=0;
 
     //First things first. Check the story format
-    if(typeof story.format=="undefined" || story.format!="p316") {
+    if(story.format=="p316") {
+      story = this.convertP316toP417(story);
+    } else if(typeof story.format=="undefined" || story.format!="p417") {
       //TODO unsupported story! handle this event
       this.log.error("Unsupported format!", this);
       return;
@@ -366,9 +368,9 @@ module.exports = function() {
 
     this._totalAssets=story.actors.length+story.audiotracks.length
     this.format = story.format;
-    this.title=story.title;
-    this.width=story.width;
-    this.height=story.height;
+    this.title = story.title;
+    this.width = story.width;
+    this.height = story.height;
 
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
@@ -403,6 +405,20 @@ module.exports = function() {
     this._sortTimeline();
 
     //Map names to array indices
+    this._mapNamesToIndeces();
+
+    this._findLanguages();
+
+    if(this._totalAssets==0) {this._assetLoaded();} //For empty stories
+  }
+
+  this._sortTimeline = function() {
+    this.timeline.sort(function(event1,event2) {
+      return event1.time-event2.time;
+    });
+  }
+
+  this._mapNamesToIndeces = function() {
     for(var i=0;i<this.timeline.length;i++) {
       //actors
       if(typeof this.timeline[i].actor!="undefined") {
@@ -421,14 +437,6 @@ module.exports = function() {
         }
       }
     }
-
-    this._findLanguages();
-  }
-
-  this._sortTimeline = function() {
-    this.timeline.sort(function(event1,event2) {
-      return event1.time-event2.time;
-    });
   }
 
   //Resets actors to their initial positions
@@ -445,6 +453,31 @@ module.exports = function() {
     for(var i=0;i<this.audiotracks.length;i++) {
       this.audiotracks[i].stop();
     }
+  }
+
+  //Convert P316 stories to the latest format P417
+  this.convertP316toP417 = function(story) {
+    for(var i=0; i<story.timeline.length; i++) {
+      var event = story.timeline[i];
+      if(typeof event.action=="string" && (event.action=="show" || event.action=="hide")) {
+        var action = {type: event.action};
+        story.timeline[i].action = action;
+      }
+    }
+    story.format = "p417";
+    this.log.message("Story converted from P316 to P417.", thisobj);
+    return story;
+  }
+
+  //Return the maximum ID assigned to a timeline event
+  this.getMaxId = function() {
+    var maxId = 0;
+    for(var i=0; i<this.timeline.length; i++) {
+      if(this.timeline[i]._id>maxId) {
+        maxId = this.timeline[i]._id;
+      }
+    }
+    return maxId;
   }
 
   //returns the duration of the story
@@ -505,6 +538,67 @@ module.exports = function() {
     else {return false;}
   }
 
+  this.addActor = function(actor) {
+    var newActor = new MovableObject().initWithActor(actor, function() {}, this._assetsPath);
+    this.actors.push(newActor);
+  }
+
+  /** This function removes an 'Actor' from the story **/
+  this.removeActor = function(name) {
+    //Remove from the actors list
+    for(var i=0; i<this.actors.length; i++) {
+      if(this.actors[i].name==name) {
+        this.actors.splice(i, 1);
+        break;
+      }
+    }
+    //Remove from timeline
+    for(var i=0; i<this.timeline.length; i++) {
+      var event = this.timeline[i];
+      if(typeof(event.actor)!="undefined" && event.actor==name) {
+        this.timeline.splice(i, 1);
+        i=0; //start again
+      }
+    }
+    //Indeces changed!
+    this._mapNamesToIndeces();
+  }
+
+  this.addAudiotrack = function(audiotrack) {
+    var newAudiotrack = new this.AudioTrack(audiotrack, function() {}, "");
+    this.audiotracks.push(newAudiotrack);
+  }
+
+  /** This function removes an 'Audiotrack' from the story **/
+  this.removeAudiotrack = function(name) {
+    //Remove from the actors list
+    for(var i=0; i<this.audiotracks.length; i++) {
+      if(this.audiotracks[i].name==name) {
+        this.audiotracks.splice(i, 1);
+        break;
+      }
+    }
+    //Remove from timeline
+    for(var i=0; i<this.timeline.length; i++) {
+      var event = this.timeline[i];
+      if(typeof(event.audiotrack)!="undefined" && event.audiotrack==name) {
+        this.timeline.splice(i, 1);
+        i=0; //start again
+      }
+    }
+    //Indeces changed!
+    this._mapNamesToIndeces();
+  }
+
+  this.removeTimelineEvent = function(eventId) {
+    for(var i=0; i<this.timeline.length; i++) {
+      if(this.timeline[i]._id==eventId) {
+        this.timeline.splice(i, 1);
+        return;
+      }
+    }
+  }
+
 }
 
 //////////// MovableObject ////////////
@@ -546,11 +640,21 @@ function MovableObject() {
     this.image.src=assetsPath+actor.url;
     //add the motion object
     if(typeof actor.motion=="undefined") {
-      this.motion = {"type":null,"freq":0,"x":0,"y":0,"r":0};
+      this.resetMotion();
     } else {
       this.motion = actor.motion;
     }
     return this;
+  }
+
+  this.changeImage = function(newImage, assetsPath) {
+    if(typeof assetsPath=="undefined") {assetsPath="";}
+    this.url = newImage;
+    this.image.src = assetsPath+this.url;
+  }
+
+  this.resetMotion = function() {
+    this.motion = {"type":null,"freq":0,"x":0,"y":0,"r":0};
   }
 
   this.resetPosition =  function() {
@@ -561,6 +665,502 @@ function MovableObject() {
 }
 
 },{"./mod-audiotrack.js":1,"./mod-log.js":3}],7:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj = this;
+
+  //--Prototypes & Includes--//
+
+  // this._EventsManager = require("./../../common/mod-eventsmanager.js");
+
+  //--Variables--//
+
+  this._assets = [];
+
+  // this.eventsManager=new this._EventsManager();
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "event-editor";
+  this._container.style.cssText = "width:100%; height:100%;";
+  //container > body
+  this._containerBody = document.createElement("div");
+  this._containerBody.className = "event-editor-body";
+  this._containerBody.style.cssText = "padding:0; max-height:500px; overflow-y:auto;"
+  this._container.appendChild(this._containerBody);
+
+  //--Functions--//
+
+  this.setAssets = function(assets) {
+    this._assets = assets;
+
+    this._containerBody.innerHTML = "";
+
+    for(var i=0; i<this._assets.length; i++) {
+      var option = document.createElement("a");
+      option.assetName = this._assets[i];
+      option.style.cssText = "display:block; padding:2px 1em; color:#000";
+      option.innerHTML = this._assets[i];
+      option.setAttribute("href","javascript:");
+      option.onclick = this._onselect;
+      this._containerBody.appendChild(option);
+    }
+  }
+
+  this._onselect = function() {
+    if(thisobj.onselect!=null) {
+      thisobj.onselect(this.assetName);
+    }
+  }
+
+  this.onselect = function(assetName) {}
+
+}
+
+},{}],8:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj = this;
+
+  //--Prototypes & Includes--//
+
+  this.log = require("./../../common/mod-log.js");
+  this._EventsManager = require("./../../common/mod-eventsmanager.js");
+  this._AssetEditor = require("./mod-asseteditor.js");
+  this._Popup = require("./../popup/popup.js");
+
+  //--Variables--//
+  this._logName = "Assets Manager";
+  this._assets = [];
+  this.eventsManager = new this._EventsManager();
+  this._assetEditor = new this._AssetEditor();
+  this._popup = new this._Popup();
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "assets-container";
+  this._container.style.cssText = "position:relative;height:100%;user-select:none;";
+  //container > list
+  this._listElem = document.createElement("div");
+  this._listElem.className = "assets-list";
+  this._listElem.style.cssText = "padding-bottom:2em;height:100%;overflow-y:scroll;";
+  this._container.appendChild(this._listElem);
+  //container > controls
+  this._controlsElem = document.createElement("div");
+  this._controlsElem.className = "assets-controls";
+  this._controlsElem.style.cssText = "position:absolute;bottom:0;width:100%;";
+  this._container.appendChild(this._controlsElem);
+  //container > controls > add actor
+  this._addActorButton = document.createElement("a");
+  this._addActorButton.className = "button";
+  this._addActorButton.style.cssText = "line-height:1.5em;margin-right:1%;width:32%";
+  this._addActorButton.innerHTML = "+ Actor";
+  this._controlsElem.appendChild(this._addActorButton);
+  //container > controls > add audiotrack
+  this._addAudiotrackButton = document.createElement("a");
+  this._addAudiotrackButton.className = "button";
+  this._addAudiotrackButton.style.cssText = "line-height:1.5em;margin-right:1%;width:32%";
+  this._addAudiotrackButton.innerHTML = "+ Audio";
+  this._controlsElem.appendChild(this._addAudiotrackButton);
+  //container > controls > remove
+  this._removeAssetButton = document.createElement("a");
+  this._removeAssetButton.className = "button";
+  this._removeAssetButton.style.cssText = "line-height:1.5em;width:32%";
+  this._removeAssetButton.innerHTML = "Remove";
+  this._controlsElem.appendChild(this._removeAssetButton);
+
+  this.clear = function() {
+    this._listElem.innerHTML = "";
+    this._assets = [];
+  }
+
+  this.addAsset = function(asset) {
+    if(typeof asset=="undefined" || asset==null) {
+      this.log.warning("Won't add 'null' to assets list!", this);
+      return;
+    }
+    asset.onclick = this._assetSelected;
+    asset.ondblclick = this._assetDoubleClicked;
+    this._assets.push(asset);
+    this._listElem.appendChild(asset._container);
+  }
+
+  this._assetSelected = function(asset) {
+    if(!asset.isSelected()) {
+      asset.setSelected(true);
+      for(var i=0; i<thisobj._assets.length; i++) {
+        if(thisobj._assets[i]!=asset) {
+          thisobj._assets[i].setSelected(false);
+        }
+      }
+    } else {
+      asset.setSelected(false);
+    }
+  }
+
+  this._getSelectedAssets = function() {
+    var selected = [];
+    for(var i=0; i<this._assets.length; i++) {
+      if(this._assets[i].isSelected()) {
+        selected.push(this._assets[i]);
+      }
+    }
+    return selected;
+  }
+
+  this._assetDoubleClicked = function(asset) {
+    asset.setSelected(true);
+    thisobj._assetEditor.editAsset(asset);
+    thisobj._popup.show("Edit &quot;"+asset.name+"&quot;", thisobj._assetEditor._container, null, [
+      {name:"Cancel",handler:function(){thisobj._popup.hide();}},
+      {name:"OK",handler:function() {
+        var update = thisobj._assetEditor.getResult();
+        thisobj.eventsManager.callHandlers("updateasset", {name:asset.name, type:asset.type, settings:update});
+        asset.name = update.name;
+        if(asset.type=="actor") {
+          asset.settings.x = update.x;
+          asset.settings.y = update.y;
+          asset.settings.z = update.z;
+          if(typeof update.motion!="undefined") {asset.settings.motion = update.motion;}
+          else if(asset.settings.motion!="undefined") {asset.settings.motion = null;}
+          if(typeof update.sprite!="undefined") {asset.settings.sprite = update.sprite;}
+          else if(asset.settings.sprite!="undefined") {asset.settings.sprite = null;}
+        } else if(asset.type=="audiotrack") {
+          asset.settings.volume = update.volume;
+        }
+        asset.refresh();
+        thisobj._popup.hide();
+      }}
+    ]);
+  }
+
+  this._addAssetButtonClick = function(type) {
+    thisobj._assetEditor.editAsset(type);
+    thisobj._popup.show("New Asset", thisobj._assetEditor._container, null, [
+      {name:"Cancel",handler:function(){thisobj._popup.hide();}},
+      {name:"OK",handler:function() {
+        var newAsset = thisobj._assetEditor.getResult();
+        thisobj.eventsManager.callHandlers("add"+type, newAsset);
+        thisobj._popup.hide();
+      }}
+    ]);
+  }
+  this._addActorButton.onclick = function() {thisobj._addAssetButtonClick("actor");}
+  this._addAudiotrackButton.onclick = function() {thisobj._addAssetButtonClick("audiotrack");}
+
+  this._removeButtonClick = function() {
+    var selected = this._getSelectedAssets();
+    if(selected.length==0) {return;}
+    if(!confirm("Are you sure?")) {return;}
+    for(var i=0; i<selected.length; i++) {
+      var selectedAsset = selected[i];
+      //remove from dom tree
+      selectedAsset._container.remove();
+      //remove from assets list
+      this._assets.splice(this._assets.indexOf(selectedAsset),1);
+      //notify listeners
+      this.eventsManager.callHandlers("removeasset", {type:selectedAsset.type, name:selectedAsset.name});
+    }
+  }
+  this._removeAssetButton.onclick = function() {thisobj._removeButtonClick();}
+
+  /////////////////////////////////
+
+  this.Asset = function(type, name, url, settings) {
+
+    var thisobj = this;
+
+    this.type = (typeof type!="undefined" && type=="actor")?type:"audiotrack";
+    this.name = name;
+    this.url = url;
+    this.settings = settings;
+    this._selected = false;
+    this.actorIcon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAN1wAADdcBQiibeAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAGDSURBVDiN1dK/axRBGIfxZzzisSDYxG6xkGhnaSOKP7DaciHY2dkIgoVN9J8QBKu71k5WLWJjEY6IhWBjKWyKLIIoaDDGS+R8bC4y7mV31av8Njvv7MtnZl8W/uuoibqivla31Y/q9XnARfWNs/mmHvlXdPUAcD+Xo7776oZ6oQs82wKqXot6H0/3PqhHY+dQzb0KUA4GjLKMcjisn3ssWn+ePheB5Tb0DEBVFEzGY6qiqKOnovX3aJ21oUsAaZ7TSxLSPK+jy+pJ9QRwJdo/HTeFuFB3gcN16Q/yNYTw68+o31SA1XLAnVHGs3Jmpk3px0Ud3QJ4URXsTcasVzMzbcpOG/oW4Fya0+8lnE9nZtqUd41v1Hsd/2lTfvuk+k0fxcXgSUl2a8Twadl10+dt6Drwar8o1irGexOKtaoN3AIeNqIhBIGbwC5Afikl6ffIL6Zt6O0Qwqe2BgDUXP3SMcdt9UYnVoOX1AfqpvpjCr1XX6p31eN/BR5wwIK6MBcyb34C7WdjQZPGMB0AAAAASUVORK5CYII=";
+    this.audiotrackIcon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAN1wAADdcBQiibeAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAGbSURBVDiN3ZQ/T1NxFIaf91pDE8oCbvI5aA1L72XAmDDScAlDGRhYiAqsDKxGAy6EsHTrVVkIIdCh3A4ktF/AT6AbMCiQ8vc4eGuapvWWhkXf6fz7PTnn5OQH/53MbKXbWnUJXALeSfpTXw68SWEFwd55fyo/MbF72TXUzN4C7wGaoQBhkM0YKgFf67fJ8Vcz+z8AnBjg6wawndypShVjHsgkE/WN2E7NbAFYb461dtrQYeBWgTRGxvPDWqIJYi2P19sBwmI2b9ImsH3iPJvN5b5cm1SQWVpYHqj9dfx2cv1KQb8vYXrITlcBnLv7CoBJWYjZaSddPenbApDZHAAJvkWp4Z6hL3Ols8gcBHBzlfPIT/UMPfg8PhiZZwBHO6MDkf+zZ2jf3dUcgElbADcXT59Hqe89QQ+L7rRJq4YKpxpaAbh3HDdKh/AId2qGwk/uMTCC8cLzw84nJekj8Cau8zBwfSANFD0/rEHM+JLWgMXOwGwGsQFU67fJ+UY8dqeSPgDLrfFy4E0aKgtKF/2pscZn8iA95D/9d/QL6MuRt4ZLgUIAAAAASUVORK5CYII=";
+
+    //container
+    this._container = document.createElement("div");
+    this._container.className = "asset "+this.type;
+    // this._container.innerHTML = name;
+    //container > icon
+    this._assetIconElem = document.createElement("div");
+    this._assetIconElem.style.cssText = "display:inline-block; width:21px;height:21px; vertical-align:middle; opacity:0.5;";
+    this._assetIconElem.style.backgroundImage = "url("+(type=="actor"?this.actorIcon:this.audiotrackIcon)+")";
+    this._container.appendChild(this._assetIconElem);
+    //container > label
+    this._labelElem = document.createElement("div");
+    this._labelElem.style.cssText = "display:inline-block; line-height:21px; vertical-align:middle; margin-left:0.5em";
+    this._labelElem.innerHTML = name;
+    this._container.appendChild(this._labelElem);
+
+    this.refresh = function() {
+      this._labelElem.innerHTML = this.name;
+    }
+
+    this.setSelected = function(selected) {
+      this._selected = selected;
+      if(selected==true) {
+        thisobj._container.className = "asset selected "+thisobj.type;
+      } else {
+        this._container.className = "asset "+this.type;
+      }
+    }
+
+    this.isSelected = function() {
+      return this._selected;
+    }
+
+    this._container.onclick = function(event) {
+      thisobj.onclick(thisobj);
+    }
+
+    this._container.ondblclick = function(event) {
+      thisobj.ondblclick(thisobj);
+    }
+
+    this.onclick = function() {};
+
+    this.ondblclick = function() {};
+
+  }
+
+}
+
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../popup/popup.js":15,"./mod-asseteditor.js":9}],9:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj = this;
+
+  //--Variables--//
+
+  this._currentAsset = null;
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "asset-editor";
+  this._container.style.cssText = "width:100%; height:100%;";
+  //container > body
+  this._containerBody = document.createElement("div");
+  this._containerBody.className = "asset-editor-body";
+  this._containerBody.style.cssText = "padding:0.5em";
+  this._container.appendChild(this._containerBody);
+  //container > body > preview
+  this._assetPreview = document.createElement("img");
+  this._assetPreview.className = "preview"
+  this._assetPreview.style.cssText = "float:right;max-width:120px;max-height:120px;border:1px solid #aaa";
+  this._containerBody.appendChild(this._assetPreview);
+  //container > body > asset-name
+  this._containerBody.innerHTML+="Name ";
+  this._assetName = document.createElement("input");
+  this._assetName.className = "asset-name"
+  this._assetName.style.marginBottom = "0.5em";
+  this._assetName.setAttribute("name","name");
+  this._containerBody.appendChild(this._assetName);
+  //container > body > asset-url
+  this._containerBody.innerHTML+="<br>URL ";
+  this._assetUrl = document.createElement("input");
+  this._assetUrl.className = "asset-url"
+  this._assetUrl.style.marginBottom = "0.5em";
+  this._assetUrl.setAttribute("name","url");
+  this._containerBody.appendChild(this._assetUrl);
+  //container > body > asset-settings
+  this._assetSettings = document.createElement("div");
+  this._containerBody.appendChild(this._assetSettings);
+
+  //actor
+  this._actorEditor = document.createElement("div");
+  this._actorEditor.className = "actor-editor";
+  this._actorEditor.style.cssText = "padding:0;"
+  //actor > xyz
+  this._actorPosition = document.createElement("div");
+  this._actorPosition.className = "actor-position";
+  this._actorPosition.innerHTML = "X <input type='number' name='x' style='margin-bottom:0.2em'><br/>"+
+                                    "Y <input type='number' name='y' style='margin-bottom:0.2em'><br/>"+
+                                    "Z <input type='number' name='z' style='margin-bottom:0.2em'><br/>";
+  this._actorEditor.appendChild(this._actorPosition);
+
+  //actor > ---
+  this._actorEditor.appendChild(document.createElement("hr"));
+  //actor > actor-type
+  this._actorEditor.innerHTML+="Type ";
+  this._actorTypeSelector = document.createElement("select");
+  this._actorTypeSelector.setAttribute("name","type");
+  this._actorTypeSelector.className = "actor-type";
+  this._actorTypeSelector.style.marginBottom = "1em";
+  this._actorTypeSelector.innerHTML = "<option value='static'>Static</option>"+
+                                    "<option value='motion'>Motion</option>"+
+                                    "<option value='sprite'>Sprite</option>";
+  this._actorEditor.appendChild(this._actorTypeSelector);
+  this._actorTypeSelectorOnChange = function() {
+    thisobj._actorTypeSettings.innerHTML = "";
+    if(thisobj._actorTypeSelector.value=="motion") {
+      thisobj._actorTypeSettings.appendChild(thisobj._actorMotion);
+      thisobj._motionTypeSelectorOnChange();
+    } else if(thisobj._actorTypeSelector.value=="sprite") {
+      thisobj._actorTypeSettings.appendChild(thisobj._actorSprite);
+    }
+  }
+  this._actorTypeSelector.onchange = this._actorTypeSelectorOnChange;
+  //actor > type-settings
+  this._actorTypeSettings = document.createElement("div");
+  this._actorTypeSettings.className = "actor-type-settings";
+  this._actorEditor.appendChild(this._actorTypeSettings);
+
+  //motion
+  this._actorMotion = document.createElement("div");
+  this._actorMotion.className = "motion-editor";
+  this._actorMotion.innerHTML = "Motion <select name='type' style='margin-bottom:0.5em'>"+
+                                "<option value='rotate'>Rotate</option>"+
+                                "<option value='vsin'>Vertical Sinusoid</option>"+
+                                "<option value='ellipse'>Ellipse</option>"+
+                                "<option value='swing'>Swing</option>"+
+                                "</select><br>"+
+                                "<div class='motion-attributes'></div>";
+  this._motionTypeSelectorOnChange = function() {
+    var attrContainer = thisobj._actorMotion.children[2];
+    attrContainer.innerHTML = "";
+    if(thisobj._actorMotion.children[0].value=="swing") {
+      attrContainer.appendChild(thisobj._swingAttributes);
+    } else {
+      attrContainer.appendChild(thisobj._genericMotionAttributes);
+    }
+  }
+  this._actorMotion.children[0].onchange = this._motionTypeSelectorOnChange;
+
+  //motion > attributes
+  this._genericMotionAttributes = document.createElement("div");
+  this._genericMotionAttributes.innerHTML = "Frequency <input type='number' name='freq' style='margin-bottom:0.5em'><br>"+
+                                "Phase <input type='number' name='phase' style='margin-bottom:0.5em'>";
+  this._swingAttributes = document.createElement("div");
+  this._swingAttributes.innerHTML = "Amplitude <input type='number' name='amp' style='margin-bottom:0.5em'><br>"+
+                                "Frequency <input type='number' name='freq' style='margin-bottom:0.5em'><br>"+
+                                "Phase <input type='number' name='phase' style='margin-bottom:0.5em'>";
+
+
+  //sprite
+  this._actorSprite = document.createElement("div");
+  this._actorSprite.className = "sprite-editor";
+  this._actorSprite.innerHTML = "Total Frames <input type='number' name='frames' style='margin-bottom:0.5em'><br>"+
+                                "Initial Frame <input type='number' name='current' style='margin-bottom:0.5em'><br>"+
+                                "Frame Period (ms) <input type='number' name='period' style='margin-bottom:0.5em'><br>"+
+                                "Frame Width <input type='number' name='width' style='margin-bottom:0.5em'><br>"+
+                                "Frame Height <input type='number' name='height' style='margin-bottom:0.5em'>";
+
+  //audiotrack
+  this._audiotrackEditor = document.createElement("div");
+  this._audiotrackEditor.className = "audiotrack-editor";
+  this._audiotrackEditor.style.cssText = "padding:0;"
+  //audiotrack > volume
+  this._audiotrackEditor.innerHTML += "Volume ";
+  this._audiotrackVolume = document.createElement("input");
+  this._audiotrackVolume.setAttribute("type", "number");
+  this._audiotrackVolume.setAttribute("name", "volume");
+  this._audiotrackEditor.className = "audiotrack-volume";
+  this._audiotrackEditor.appendChild(this._audiotrackVolume);
+
+  //--Functions--//
+
+  this.editAsset = function(asset) {
+    if(asset=="actor") {
+      asset = {};
+      asset.name = "";
+      asset.type = "actor";
+      asset.url = "";
+      asset.settings = {};
+      asset.settings.x = 0;
+      asset.settings.y = 0;
+      asset.settings.z = 1;
+      asset.settings.motion = {};
+    } if(asset=="audiotrack") {
+      asset = {};
+      asset.name = "";
+      asset.type = "audiotrack";
+      asset.url = "";
+      asset.settings = {};
+      asset.settings.volume = 1;
+    }
+
+    this._currentAsset = asset;
+    // console.log(asset);
+
+    this._assetSettings.innerHTML="";
+
+    this._containerBody.children["name"].value = asset.name;
+    this._containerBody.children["url"].value = asset.url;
+
+    if(asset.type=="actor") {
+      this._containerBody.children[0].setAttribute("src",asset.url);
+      this._actorEditor.children[0].children["x"].value = asset.settings.x;
+      this._actorEditor.children[0].children["y"].value = asset.settings.y;
+      this._actorEditor.children[0].children["z"].value = asset.settings.z;
+      if(typeof asset.settings.motion!="undefined" && asset.settings.motion!=null && asset.settings.motion.type!=null) {
+        //Motion
+        this._actorTypeSelector.value = "motion";
+        this._actorTypeSelectorOnChange();
+        this._actorEditor.children[3].children[0].children["type"].value = asset.settings.motion.type;
+        this._actorEditor.children[3].children[0].children[2].children[0].children["freq"].value = asset.settings.motion.freq;
+        this._actorEditor.children[3].children[0].children[2].children[0].children["phase"].value = asset.settings.motion.phase;
+        if(asset.settings.motion.type=="swing") {this._actorEditor.children[3].children[0].children[2].children[0].children["amp"].value = asset.settings.motion.amp;}
+      } else if(asset.settings.sprite!=null) {
+        //Sprite
+        this._actorTypeSelector.value = "sprite";
+        this._actorTypeSelectorOnChange();
+        this._actorEditor.children[3].children[0].children["frames"].value = asset.settings.sprite.frames;
+        this._actorEditor.children[3].children[0].children["current"].value = asset.settings.sprite.current;
+        this._actorEditor.children[3].children[0].children["period"].value = asset.settings.sprite.period;
+        this._actorEditor.children[3].children[0].children["width"].value = asset.settings.sprite.width;
+        this._actorEditor.children[3].children[0].children["height"].value = asset.settings.sprite.height;
+      } else {
+        //Static
+        this._actorTypeSelector.value = "static";
+        this._actorTypeSelectorOnChange();
+      }
+      this._assetSettings.appendChild(this._actorEditor);
+    } else if(asset.type=="audiotrack") {
+      this._containerBody.children[0].setAttribute("src","");
+      this._audiotrackVolume.value = asset.settings.volume;
+      this._assetSettings.appendChild(this._audiotrackEditor);
+    }
+  }
+
+  this.getResult = function() {
+    var updatedAsset = {};
+    updatedAsset.name = this._containerBody.children["name"].value;
+    updatedAsset.url = this._containerBody.children["url"].value;
+    //updatedAsset.settings = {};
+    if(this._currentAsset.type=="actor") {
+      updatedAsset.x = this._actorEditor.children[0].children["x"].value*1;
+      updatedAsset.y = this._actorEditor.children[0].children["y"].value*1;
+      updatedAsset.z = this._actorEditor.children[0].children["z"].value*1;
+      if(this._actorEditor.children["type"].value=="motion") {
+        updatedAsset.motion = {};
+        updatedAsset.motion.type = this._actorEditor.children[3].children[0].children["type"].value;
+        updatedAsset.motion.freq = this._actorEditor.children[3].children[0].children[2].children[0].children["freq"].value*1;
+        updatedAsset.motion.phase = this._actorEditor.children[3].children[0].children[2].children[0].children["phase"].value*1;
+        if(updatedAsset.motion.type=="swing") {updatedAsset.motion.amp = this._actorEditor.children[3].children[0].children[2].children[0].children["amp"].value*1;}
+      } else if(this._actorEditor.children["type"].value=="sprite") {
+        updatedAsset.sprite = {};
+        updatedAsset.sprite.frames = this._actorEditor.children[3].children[0].children["frames"].value*1;
+        updatedAsset.sprite.current = this._actorEditor.children[3].children[0].children["current"].value*1;
+        updatedAsset.sprite.period = this._actorEditor.children[3].children[0].children["period"].value*1;
+        updatedAsset.sprite.width = this._actorEditor.children[3].children[0].children["width"].value*1;
+        updatedAsset.sprite.height = this._actorEditor.children[3].children[0].children["height"].value*1;
+      }
+    } else if(this._currentAsset.type=="audiotrack") {
+      updatedAsset.volume = this._audiotrackVolume.value*1;
+    }
+    return updatedAsset;
+  }
+
+}
+
+},{}],10:[function(require,module,exports){
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 
@@ -569,22 +1169,27 @@ drama.Editor = function(containerId) {
 
   //--prototypes & includes--//
   this.log = require("./../common/mod-log.js");
-  this.StoryManager = require("./storymanager/storymanager.js");
+  this.AssetsManager = require("./assetsmanager/assetsmanager.js");
+  this.AssetSelector = require("./assetselector/assetselector.js");
   this.StorageHelper = require("./storagehelper/storagehelper.js");
   this.TimelineEditor = require("./timeline/timeline.js");
   this.EventEditor = require("./eventeditor/eventeditor.js");
+  this.StoryGlobalSettingsEditor = require("./storyglobalsettings/storyglobalsettings.js");
   this.Popup = require("./popup/popup.js");
   this.Player = require("./../player/modules/player-main.js");
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.10";
+  this.EDITOR_VERSION = "0.11";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
   this.eventEditor = new this.EventEditor();
+  this.assetsManager = new this.AssetsManager();
+  this.assetSelector = new this.AssetSelector();
   this.popup = new this.Popup();
   this.storageHelper = new this.StorageHelper();
+  this.storyGlobalSettingsEditor = new this.StoryGlobalSettingsEditor();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -606,7 +1211,7 @@ drama.Editor = function(containerId) {
 
     var layoutStyle = 'border: 1px solid #dfdfdf; padding: 0px; overflow: hidden;';
     var mainStyle = layoutStyle + "background-color:#000;";
-    var rightStyle = layoutStyle + "background-color:#444;";
+    var rightStyle = layoutStyle + "background-color:#222;";
     var bottomStyle = layoutStyle + "background-color:#222;";
     $("#"+containerId).w2layout({
       name: 'layout',
@@ -614,11 +1219,13 @@ drama.Editor = function(containerId) {
       panels: [
         { type: 'top', size: 30, resizable: false, style: layoutStyle, toolbar: thisobj.toolbar },
         { type: 'main', style: mainStyle, content: thisobj.player.playerElement},
-        { type: 'right', size: 300, resizable: true, style: rightStyle, content: "right content" },
+        { type: 'right', size: 300, resizable: true, style: rightStyle, content: thisobj.assetsManager._container },
         { type: 'bottom', size: 300, resizable: true, style: bottomStyle, content: thisobj.timelineEditor._container }
       ],
       onResize: thisobj._layoutResizeHandler
     });
+
+    document.addEventListener("keydown", thisobj._onKeydownGlobal);
   }
 
   //init the top toolbar
@@ -626,15 +1233,15 @@ drama.Editor = function(containerId) {
     this.toolbar = {
       name: "topbar",
     	items: [
-        { type: 'button', id: 'new-story', text: 'New', img: 'icon-page' },
-    		{ type: 'menu',   id: 'save-story', caption: 'Save', img: 'icon-page', items: [
-    			{ text: 'to browser storage', id: 'local-storage'},
-    			{ text: 'to file', id: 'export'}
-    		]},
-        { type: 'menu',   id: 'load-story', caption: 'Load', img: 'icon-page', items: [
-    			{ text: 'from browser storage', id: 'local-storage'},
-    			{ text: 'from URL', id: 'url'}
-    		]},
+        { type: 'menu', id: 'file-menu', text: 'File', img: 'icon-page', items: [
+          { text: 'New story', id: 'new-story'},
+          { text: '--' },
+          { text: 'Load from browser', id: 'load-local-storage'},
+    			{ text: 'Load from URL&hellip;', id: 'load-url'},
+          { text: '--' },
+          { text: 'Save to browser', id: 'save-local-storage'},
+    			{ text: 'Save to file', id: 'save-export'}
+        ]},
         { type: 'break', id: 'break1' },
         { type: 'check', id: 'playback-ctls-play', text: 'Play', onClick: function(event){
           if(!event.item.checked) {thisobj.player.play();}
@@ -656,7 +1263,7 @@ drama.Editor = function(containerId) {
         }},
         { type: 'break', id: 'break1' },
     		{ type: 'spacer' },
-    		{ type: 'button',  id: 'item5',  caption: 'Item 5', icon: 'fa-home' }
+    		{ type: 'button',  id: 'story-title',  caption: 'Untitled'}
     	],
       onClick: function(event) {
         if(event.item.id=="playback-ctls-subtitles" && event.subItem!=null) {
@@ -664,26 +1271,66 @@ drama.Editor = function(containerId) {
           w2ui["layout_top_toolbar"].set("playback-ctls-subtitles", {caption:event.subItem.value});
         }
         //Save
-        else if(event.item.id=="save-story" && event.subItem!=null) {
-          if(event.subItem.id=="local-storage") {
-            //local storage
-            thisobj.storageHelper.save(thisobj.player.story);
-          } else if(event.subItem.id=="export") {
-            //export
-            thisobj.storageHelper.export(thisobj.player.story);
+        else if(event.item.id=="file-menu" && event.subItem!=null) {
+          if(event.subItem.id=="new-story") {
+            var newStory = {
+              format: "p417",
+              title: "Untitled",
+              width: 800,
+              height: 600,
+              actors: [],
+              audiotracks: [],
+              timeline: []
+            };
+            thisobj.player.loadStory(newStory);
           }
-        }
-        //Load
-        else if(event.item.id=="load-story" && event.subItem!=null) {
-          if(event.subItem.id=="local-storage") {
+          // Load
+          else if(event.subItem.id=="load-local-storage") {
             //local storage
             var story = thisobj.storageHelper.load();
             thisobj.player.loadStory(story);
-          } else if(event.subItem.id=="url") {
+          } else if(event.subItem.id=="load-url") {
             //url
             var storyURL = prompt("Enter a story URL");
             if(storyURL!=null) {thisobj.player.loadStory(storyURL);}
           }
+          // Save
+          else if(event.subItem.id=="save-local-storage") {
+            //local storage
+            thisobj.storageHelper.save(thisobj.player.story);
+          } else if(event.subItem.id=="save-export") {
+            //export
+            thisobj.storageHelper.export(thisobj.player.story);
+          }
+        }
+        //Story Global Settings
+        else if(event.item.id=="story-title") {
+          var settings = {
+            title: "Untitled",
+            width: 800,
+            height: 600
+          };
+          if(thisobj.player.story.isLoaded()) {
+            settings.title = thisobj.player.story.title;
+            settings.width = thisobj.player.story.width;
+            settings.height = thisobj.player.story.height;
+          }
+          thisobj.storyGlobalSettingsEditor.setCurrentSettings(settings);
+          thisobj.popup.show("Story Settings", thisobj.storyGlobalSettingsEditor._container, null, [
+            {name:"Cancel", handler:function() {thisobj.popup.hide();}},
+            {name:"OK", handler:function() {
+              if(thisobj.storyGlobalSettingsEditor.settingsChanged()) {
+                var newSettings = thisobj.storyGlobalSettingsEditor.getResult();
+                thisobj.player.story.title = newSettings.title;
+                thisobj.player.story.width = newSettings.width;
+                thisobj.player.story.height = newSettings.height;
+                thisobj.player._onresize();
+                thisobj.player.stop();
+                w2ui["layout_top_toolbar"].set("story-title", {caption:newSettings.title});
+              }
+              thisobj.popup.hide();
+            }}
+          ]);
         }
       }
     };
@@ -696,6 +1343,9 @@ drama.Editor = function(containerId) {
   this._storyLoaded = function() {
     var story = this.player.story;
 
+    w2ui["layout_top_toolbar"].set("story-title", {caption:story.title});
+
+    this._inflateAssetsManager(story);
     this._inflateTimeline(story);
     this._refreshLanguagesMenu();
   }
@@ -716,6 +1366,23 @@ drama.Editor = function(containerId) {
       count:subtitlesMenuItems.length
     });
     subtitlesMenu.items = subtitlesMenuItems;
+  }
+
+  this._inflateAssetsManager = function(story) {
+    this.assetsManager.clear();
+    for(var i=0; i<story.actors.length; i++) {
+      var actor = story.actors[i];
+      var actorSettings = {x:actor.x, y:actor.y, z:actor.z};
+      if(typeof actor.motion=="object") {actorSettings.motion = actor.motion;}
+      if(typeof actor.sprite=="object") {actorSettings.sprite = actor.sprite;}
+      var asset = new this.assetsManager.Asset("actor", actor.name, actor.url, actorSettings);
+      this.assetsManager.addAsset(asset);
+    }
+    for(var i=0; i<story.audiotracks.length; i++) {
+      var audiotrack = story.audiotracks[i];
+      var asset = new this.assetsManager.Asset("audiotrack", audiotrack._name, audiotrack._origin.url, {volume:audiotrack._volume});
+      this.assetsManager.addAsset(asset);
+    }
   }
 
   this._inflateTimeline = function(story) {
@@ -822,10 +1489,57 @@ drama.Editor = function(containerId) {
   }
   this.timelineEditor.eventsManager.addListener("eventchange", this._onEventChange);
 
+  this._onAddEvent = function(tmp) {
+    console.log(tmp);
+    //get the max ID
+    var maxId = thisobj.player.story.getMaxId();
+
+    //actor or audiotrack?
+    var eventType = "other";
+    for(var i=0; i<thisobj.player.story.actors.length; i++) {
+      if(thisobj.player.story.actors[i].name==tmp.group) {
+        eventType = "actor";
+        break;
+      }
+    }
+    for(var i=0; i<thisobj.player.story.audiotracks.length; i++) {
+      if(thisobj.player.story.audiotracks[i]._name==tmp.group) {
+        eventType = "audiotrack";
+        break;
+      }
+    }
+
+    var timelineEvent = {
+      _id: maxId+1,
+      time: tmp.time,
+    };
+    if(tmp.group=="subtitles") {
+      timelineEvent.subtitle = {en:"text here"};
+    } else if(eventType=="actor") {
+      timelineEvent.actor = tmp.group;
+      timelineEvent.action = {type:"show"};
+    } else if(eventType=="audiotrack") {
+      timelineEvent.audiotrack = tmp.group;
+      timelineEvent.action = "play";
+    }
+    thisobj.player.story.timeline.push(timelineEvent);
+    thisobj.player.story._sortTimeline();
+    thisobj.player.story._mapNamesToIndeces();
+    thisobj.timelineEditor.addItem(timelineEvent._id, tmp.group, thisobj._getTimelineEventLabel(timelineEvent), tmp.time, null);
+    thisobj.timelineEditor._inflateGroups();
+  }
+  this.timelineEditor.eventsManager.addListener("addevent", this._onAddEvent);
+
   this._onEventDoubleClick = function(eventUI) {
     var timelineEvent = thisobj._getTimelineEventById(eventUI.id);
     thisobj.eventEditor.editTimelineEvent(timelineEvent);
-    thisobj.popup.show("Edit Event", thisobj.eventEditor._container, null, thisobj._onEventSave, thisobj._onEventCancel);
+    // thisobj.popup.show("Edit Event", thisobj.eventEditor._container, null, thisobj._onEventSave, thisobj._onEventCancel);
+    thisobj.popup.show(
+      "Edit Event",
+      thisobj.eventEditor._container,
+      null,
+      [{name:"DELETE", handler:thisobj._onEventDelete}, {name:"Cancel", handler:thisobj._onEventCancel}, {name:"OK", handler:thisobj._onEventSave}]
+    );
   }
   this.timelineEditor.eventsManager.addListener("eventdoubleclick", this._onEventDoubleClick, this._onEventCancel);
 
@@ -835,11 +1549,96 @@ drama.Editor = function(containerId) {
     var currentEvent = thisobj._getTimelineEventById(currentEventId);
     var newLabel = thisobj._getTimelineEventLabel(currentEvent);
     thisobj.timelineEditor.renameItem(currentEventId, newLabel);
+    thisobj.popup.hide();
   }
 
   this._onEventCancel = function() {
     thisobj.eventEditor.cancel();
+    thisobj.popup.hide();
   }
+
+  this._onEventDelete = function() {
+    // if(confirm("Are you sure?")) {
+    var currentEventId = thisobj.eventEditor.currentView.currentEvent._id;
+    thisobj.timelineEditor.deleteItem(currentEventId);
+    thisobj.player.story.removeTimelineEvent(currentEventId);
+    // }
+    thisobj.popup.hide();
+  }
+
+  this._onAddTimelineGroup = function() {
+      var selectables = [];
+      var currentGroups = thisobj.timelineEditor._getGroups();
+
+      if(currentGroups.indexOf("subtitles")<0) {selectables.push("subtitles");}
+      if(currentGroups.indexOf("trigger")<0) {selectables.push("trigger");}
+      for(var i=0; i<thisobj.player.story.actors.length; i++) {
+        if(currentGroups.indexOf(thisobj.player.story.actors[i].name)<0 && selectables.indexOf(thisobj.player.story.actors[i].name)<0) {
+          selectables.push(thisobj.player.story.actors[i].name);
+        }
+      }
+      for(var i=0; i<thisobj.player.story.audiotracks.length; i++) {
+        if(currentGroups.indexOf(thisobj.player.story.audiotracks[i]._name)<0) {
+          selectables.push(thisobj.player.story.audiotracks[i]._name);
+        }
+      }
+
+      thisobj.assetSelector.setAssets(selectables);
+      thisobj.popup.show(
+        "Select",
+        thisobj.assetSelector._container,
+        null,
+        [{name:"Cancel", handler:function() {thisobj.popup.hide();}}]
+      );
+  }
+  this.timelineEditor.eventsManager.addListener("addtimelinegroup", this._onAddTimelineGroup);
+
+  this._onAddTimelineGroupSelect = function(assetName) {
+    thisobj.popup.hide();
+
+    var maxId = thisobj.player.story.getMaxId();
+    var timelineEvent = {
+      _id: maxId+1,
+      time: 0,
+    };
+
+    if(assetName=="subtitles") {
+      timelineEvent.subtitle = {en:"text here"};
+    } else if(assetName=="trigger") {
+      timelineEvent.actor = assetName;
+      timelineEvent.action = null;
+    } else {
+      //actor or audiotrack?
+      var eventType = "other";
+      for(var i=0; i<thisobj.player.story.actors.length; i++) {
+        if(thisobj.player.story.actors[i].name==assetName) {
+          eventType = "actor";
+          break;
+        }
+      }
+      for(var i=0; i<thisobj.player.story.audiotracks.length; i++) {
+        if(thisobj.player.story.audiotracks[i]._name==assetName) {
+          eventType = "audiotrack";
+          break;
+        }
+      }
+      if(eventType=="actor") {
+        timelineEvent.actor = assetName;
+        timelineEvent.action = {type:"show"};
+      } else if(eventType=="audiotrack") {
+        timelineEvent.audiotrack = assetName;
+        timelineEvent.action = "play";
+      }
+    }
+    thisobj.player.story.timeline.push(timelineEvent);
+    thisobj.player.story._sortTimeline();
+    thisobj.player.story._mapNamesToIndeces();
+    thisobj.timelineEditor.addItem(timelineEvent._id, assetName, thisobj._getTimelineEventLabel(timelineEvent), timelineEvent.time, null);
+    thisobj.timelineEditor._inflateGroups();
+    if(assetName=="subtitles") {thisobj._onSubtitleChange();}
+    console.log(assetName);
+  }
+  this.assetSelector.onselect = this._onAddTimelineGroupSelect;
 
   this._onSubtitleChange = function() {
     thisobj.player.story._findLanguages();
@@ -847,9 +1646,110 @@ drama.Editor = function(containerId) {
   }
   this.eventEditor.eventsManager.addListener("subtitlechanged", this._onSubtitleChange);
 
+  this._onAddActor = function(newActor) {
+    thisobj.player.story.addActor(newActor);
+    thisobj._inflateAssetsManager(thisobj.player.story);
+  }
+  this.assetsManager.eventsManager.addListener("addactor", this._onAddActor);
+
+  this._onAddAudiotrack = function(newAudiotrack) {
+    newAudiotrack.url = [newAudiotrack.url];
+    thisobj.player.story.addAudiotrack(newAudiotrack);
+    thisobj._inflateAssetsManager(thisobj.player.story);
+  }
+  this.assetsManager.eventsManager.addListener("addaudiotrack", this._onAddAudiotrack);
+
+  this._onAssetRemove = function(assetDetails) {
+    //Remove from timeline editor
+    thisobj.timelineEditor.deleteGroup(assetDetails.name);
+    //Remove from story
+    if(assetDetails.type=="actor") {
+      thisobj.player.story.removeActor(assetDetails.name);
+    } else if(assetDetails.type=="audiotrack") {
+      thisobj.player.story.removeAudiotrack(assetDetails.name);
+    }
+    thisobj.player.stop();
+  }
+  this.assetsManager.eventsManager.addListener("removeasset", this._onAssetRemove);
+
+  this._onAssetUpdate = function(updatedAsset) {
+    console.log(updatedAsset);
+    var assetIndex = -1;
+    var asset = null;
+    if(updatedAsset.type=="actor") {
+      var actors = thisobj.player.story.actors;
+      for(var i=0; i<actors.length; i++) {
+        if(actors[i].name==updatedAsset.name) {
+          assetIndex = i;
+          asset = actors[i];
+          break;
+        }
+      }
+      if(asset==null) {thisobj.log.error("Asset not found!", thisobj); return;}
+      asset.x = asset.startX = asset._origin.x = updatedAsset.settings.x;
+      asset.y = asset.startY = asset._origin.y = updatedAsset.settings.y;
+      asset.z = asset.startZ = asset._origin.z = updatedAsset.settings.z;
+      if(typeof updatedAsset.settings.motion!="undefined") {asset.motion = updatedAsset.settings.motion;}
+      else if(typeof asset.motion!="undefined") {asset.resetMotion();}
+      if(typeof updatedAsset.settings.sprite!="undefined") {asset.sprite = updatedAsset.settings.sprite;}
+      else if(typeof asset.sprite!="undefined") {asset.sprite = null;}
+      if(asset.url!=updatedAsset.settings.url) {
+        asset._origin.url = updatedAsset.settings.url;
+        asset.changeImage(updatedAsset.settings.url);
+      }
+      if(updatedAsset.name!=updatedAsset.settings.name) {
+        asset.name = asset._origin.name = updatedAsset.settings.name;
+        var timeline = thisobj.player.story.timeline;
+        for(var i=0;i<timeline.length;i++) {
+          if(timeline[i].actor==updatedAsset.name) {
+            timeline[i].actor = updatedAsset.settings.name;
+          }
+        }
+        thisobj.timelineEditor.renameGroup(updatedAsset.name, updatedAsset.settings.name);
+      }
+      asset._origin.url = asset.url;
+      if(typeof asset.motion!="undefined" && asset.motion!=null) {asset._origin.motion = asset.motion;}
+      if(typeof asset.sprite!="undefined" && asset.sprite!=null) {asset._origin.sprite = asset.sprite;}      
+    } else if(updatedAsset.type=="audiotrack") {
+      var audiotracks = thisobj.player.story.audiotracks;
+      for(var i=0; i<audiotracks.length; i++) {
+        if(audiotracks[i]._name==updatedAsset.name) {
+          assetIndex = i;
+          asset = audiotracks[i];
+          break;
+        }
+      }
+      if(asset==null) {thisobj.log.error("Asset not found!", thisobj); return;}
+      asset._volume = updatedAsset.settings.volume;
+      if(updatedAsset.name!=updatedAsset.settings.name) {
+        asset._name = asset._origin.name = updatedAsset.settings.name;
+        var timeline = thisobj.player.story.timeline;
+        for(var i=0;i<timeline.length;i++) {
+          if(timeline[i].audiotrack==updatedAsset.name) {
+            timeline[i].audiotrack = updatedAsset.settings.name;
+          }
+        }
+        thisobj.timelineEditor.renameGroup(updatedAsset.name, updatedAsset.settings.name);
+      }
+    }
+  }
+  this.assetsManager.eventsManager.addListener("updateasset", this._onAssetUpdate);
+
+  this._onKeydownGlobal = function(event) {
+    if(window._dramaBlockGlobalKeys) {return;}
+    if(event.keyCode==32) {
+        if(thisobj.player.isPlaying()) {
+          w2ui["layout_top_toolbar"].uncheck("playback-ctls-play");
+          thisobj.player.pause();
+        } else {
+          w2ui["layout_top_toolbar"].check("playback-ctls-play");
+          thisobj.player.play();
+        }
+    }
+  }
 }
 
-},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":29,"./eventeditor/eventeditor.js":8,"./popup/popup.js":12,"./storagehelper/storagehelper.js":13,"./storymanager/storymanager.js":14,"./timeline/timeline.js":15}],8:[function(require,module,exports){
+},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":32,"./assetselector/assetselector.js":7,"./assetsmanager/assetsmanager.js":8,"./eventeditor/eventeditor.js":11,"./popup/popup.js":15,"./storagehelper/storagehelper.js":16,"./storyglobalsettings/storyglobalsettings.js":17,"./timeline/timeline.js":18}],11:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -915,10 +1815,9 @@ module.exports = function(container) {
     console.log("Cancel");
   }
 
-
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./mod-actoreventeditor.js":9,"./mod-audioeventeditor.js":10,"./mod-subtitleeditor.js":11}],9:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./mod-actoreventeditor.js":12,"./mod-audioeventeditor.js":13,"./mod-subtitleeditor.js":14}],12:[function(require,module,exports){
 module.exports = function(eventEditor) {
 
   var thisobj = this;
@@ -937,7 +1836,9 @@ module.exports = function(eventEditor) {
   this._container.innerHTML = "Action ";
   //container > action selector
   this._actionSelect = document.createElement("select");
-  this._actionSelect.innerHTML = "<option value='movelin'>Linear Movement</option>"+
+  this._actionSelect.innerHTML = "<option value='show'>Show</option>"+
+                                  "<option value='hide'>Hide</option>"+
+                                  "<option value='movelin'>Linear Movement</option>"+
                                   "<option value='movesin'>Sinusoid Movement</option>"+
                                   "<option value='teleport'>Teleportation</option>"+
                                   "<option value='fadein'>Fade In</option>"+
@@ -950,6 +1851,8 @@ module.exports = function(eventEditor) {
   this._propertiesContainer = document.createElement("div");
   this._container.appendChild(this._propertiesContainer);
   //
+  this._showProperties = new PropertyEditor([]);
+  this._hideProperties = new PropertyEditor([]);
   this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
   this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
   this._teleportProperties = new PropertyEditor([{name:"x", label:"Target X"}, {name:"y", label:"Target Y"}, {name:"z", label:"Target Z"}]);
@@ -993,6 +1896,10 @@ module.exports = function(eventEditor) {
       return this._fadeinProperties;
     } else if(action=="fadeout") {
       return this._fadeoutProperties;
+    } else if(action=="show") {
+      return this._showProperties;
+    } else if(action=="hide") {
+      return this._hideProperties;
     }
   }
 
@@ -1005,6 +1912,7 @@ module.exports = function(eventEditor) {
   this.save = function() {
     this.currentEvent.action.type = this._actionSelect.value;
     var propertiesObject = this._getActionProperties(this.currentEvent.action.type);
+    if(typeof this.currentEvent.action.params=="undefined") {this.currentEvent.action.params = {};}
     propertiesObject.exportValues(this.currentEvent.action.params);
     console.log(this.currentEvent);
   }
@@ -1068,7 +1976,7 @@ function PropertyEditor(properties) {
   this._init();
 }
 
-},{}],10:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 module.exports = function(eventEditor) {
 
   var thisobj = this;
@@ -1102,7 +2010,7 @@ module.exports = function(eventEditor) {
 
 }
 
-},{}],11:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 module.exports = function(eventEditor) {
 
   var thisobj = this;
@@ -1214,7 +2122,7 @@ function SingleLanguageEditor(language, subtitle) {
 
 }
 
-},{}],12:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1229,6 +2137,7 @@ module.exports = function() {
   this._cancelHandler = null;
   this.resizeDetector = new this._ResizeDetector();
   this._defaultKeyDownHandler = null;
+  this._buttons = [];
 
   //--Elements--//
 
@@ -1259,15 +2168,6 @@ module.exports = function() {
   this._footer = document.createElement("div");
   this._footer.style.cssText ="padding:0.5em; text-align:right";
   this._windowElem.appendChild(this._footer);
-  //container > window > footer > Cancel
-  this._cancelButton = document.createElement("button");
-  this._cancelButton.style.cssText = "margin-right:0.5em";
-  this._cancelButton.innerHTML = "Cancel";
-  this._footer.appendChild(this._cancelButton);
-  //container > window > footer > ΟΚ
-  this._okButton = document.createElement("button");
-  this._okButton.innerHTML = "OK";
-  this._footer.appendChild(this._okButton);
 
   //--Functions--//
 
@@ -1284,8 +2184,11 @@ module.exports = function() {
   this.resizeDetector.watchElement(this._windowElem);
   this._windowElem.onresize = function() {thisobj._positionWindow();}
 
-  this.show = function(title, element, width, onOk, onCancel) {
+  this.show = function(title, element, width, buttons) {
+    if(this._visible==true) {this.hide();}
     this._visible = true;
+
+    window._dramaBlockGlobalKeys = true;
 
     this._titleElem.innerHTML = title;
     this._bodyElem.innerHTML = "";
@@ -1297,6 +2200,18 @@ module.exports = function() {
     this._windowElem.style.width = width+"px";
     this._positionWindow();
 
+    if(typeof buttons.length=="number") {
+      for(var i=0; i<buttons.length; i++) {
+        var button = document.createElement("button");
+        button.handler = buttons[i].handler;
+        button.addEventListener('click', buttons[i].handler);
+        button.style.marginLeft = "0.5em";
+        button.innerHTML = buttons[i].name;
+        this._footer.appendChild(button);
+        this._buttons.push(button);
+      }
+    }
+
     if(typeof onOk=="function") {this._okHandler = onOk;}
     if(typeof onCancel=="function") {this._cancelHandler = onCancel;}
 
@@ -1305,33 +2220,41 @@ module.exports = function() {
   }
 
   this.hide = function() {
+    window._dramaBlockGlobalKeys = false;
     this._visible = false;
     this._container.style.display = "none";
     window.onkeydown = this._defaultKeyDownHandler;
+    for(var i=0; i<this._buttons.length; i++) {
+      var button = this._buttons[i];
+      button.removeEventListener('click', button.handler);
+      button.remove();
+    }
+    this._buttons = [];
   }
 
   this._onKeyDown = function(event) {
     if(event.keyCode==27) {
-      thisobj._onCancel();
+      // thisobj._onCancel();
+      thisobj.hide();
     }
     event.stopPropagation();
   }
 
-  this._onOK = function() {
-    this.hide();
-    if(typeof this._okHandler=="function") {this._okHandler();}
-  }
-  this._okButton.onclick = function() {thisobj._onOK();}
-
-  this._onCancel = function() {
-    this.hide();
-    if(typeof this._cancelHandler=="function") {this._cancelHandler();}
-  }
-  this._cancelButton.onclick = function() {thisobj._onCancel();}
+  // this._onOK = function() {
+  //   this.hide();
+  //   if(typeof this._okHandler=="function") {this._okHandler();}
+  // }
+  // this._okButton.onclick = function() {thisobj._onOK();}
+  //
+  // this._onCancel = function() {
+  //   this.hide();
+  //   if(typeof this._cancelHandler=="function") {this._cancelHandler();}
+  // }
+  // this._cancelButton.onclick = function() {thisobj._onCancel();}
 
 }
 
-},{"./../../common/mod-resizedetector.js":5}],13:[function(require,module,exports){
+},{"./../../common/mod-resizedetector.js":5}],16:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1343,11 +2266,6 @@ module.exports = function() {
 
   this._logName = "Storage Helper";
   this._localStoryKey = "story";
-  // this._visible = false;
-  // this._okHandler = null;
-  // this._cancelHandler = null;
-  // this.resizeDetector = new this._ResizeDetector();
-  // this._defaultKeyDownHandler = null;
 
   //--Elements--//
   this._exportAnchor = document.createElement("a");
@@ -1386,8 +2304,8 @@ module.exports = function() {
     var serializedStory = "data:text/json;charset=utf-8,";
     serializedStory += this._serializeStory(story);
     var encodedStory = encodeURI(serializedStory);
-    console.log(encodedStory);
 
+    this._exportAnchor.setAttribute("download", this._createFilename(story));
     this._exportAnchor.setAttribute("href", encodedStory);
     this._exportAnchor.click();
     this.log.message("Story exported.", this);
@@ -1420,20 +2338,89 @@ module.exports = function() {
     return serializedStory;
   }
 
+  this._createFilename = function(story) {
+    var title = story.title;
+    var filename = "";
+    for(var i=0; i<title.length; i++) {
+      var letter = title[i];
+      if(letter<"A" && letter>"z" && letter<"0" && letter>"9") {
+        letter = "-";
+      }
+      filename += letter;
+    }
+    return filename+".json";
+  }
+
 }
 
-},{"./../../common/mod-log.js":3}],14:[function(require,module,exports){
+},{"./../../common/mod-log.js":3}],17:[function(require,module,exports){
 module.exports = function() {
+
   var thisobj = this;
 
-  //prototypes
-  this.log = require("./../../common/mod-log.js");
+  //--Variables--//
 
-  //--variables--//
+  this._settings = null;
+
+  //--Elements--//
+
+  //container
+  this._container = document.createElement("div");
+  this._container.className = "story-gs-editor";
+  this._container.style.cssText = "width:100%; height:100%;";
+  //container > body
+  this._containerBody = document.createElement("div");
+  this._containerBody.className = "story-gs-editor-body";
+  this._containerBody.style.cssText = "padding:0.5em";
+  this._container.appendChild(this._containerBody);
+  //container > title
+  this._containerBody.innerHTML += "Story Title ";
+  this._storyTitle = document.createElement("input");
+  this._storyTitle.style.marginBottom = "0.5em";
+  this._storyTitle.setAttribute("name", "title");
+  this._containerBody.appendChild(this._storyTitle);
+  //container > width
+  this._containerBody.innerHTML += "<br>Width ";
+  this._storyWidth = document.createElement("input");
+  this._storyWidth.style.marginBottom = "0.5em";
+  this._storyWidth.setAttribute("name", "width");
+  this._containerBody.appendChild(this._storyWidth);
+  //container > height
+  this._containerBody.innerHTML += "<br>Height ";
+  this._storyHeight = document.createElement("input");
+  this._storyHeight.style.marginBottom = "0.5em";
+  this._storyHeight.setAttribute("name", "height");
+  this._containerBody.appendChild(this._storyHeight);
+
+  //--Functions--//
+
+
+  this.setCurrentSettings = function(settings) {
+    this._settings = settings;
+    this._containerBody.children["title"].value = settings.title;
+    this._containerBody.children["width"].value = settings.width;
+    this._containerBody.children["height"].value = settings.height;
+  }
+
+  this.settingsChanged = function() {
+    var results = this.getResult();
+    if(this._settings.title!=results.title) {return true;}
+    if(this._settings.width!=results.width) {return true;}
+    if(this._settings.height!=results.height) {return true;}
+    return false;
+  }
+
+  this.getResult = function() {
+    var settings = {};
+    settings.title = this._containerBody.children["title"].value;
+    settings.width = this._containerBody.children["width"].value*1;
+    settings.height = this._containerBody.children["height"].value*1;
+    return settings;
+  }
 
 }
 
-},{"./../../common/mod-log.js":3}],15:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -1507,6 +2494,38 @@ module.exports = function(container) {
         return;
       }
     }
+  }
+
+  this.deleteItem = function(id) {
+    for(var i=0; i<this._UIItems.length; i++) {
+      if(this._UIItems[i]._timelineEvent.id==id) {
+        this._UIItems[i]._container.remove();
+        this._UIItems.splice(i,1);
+        break;
+      }
+    }
+    for(var i=0; i<this._items.length; i++) {
+      if(this._items[i].id==id) {
+        this._items.splice(i,1);
+        break;
+      }
+    }
+  }
+
+  this.renameGroup = function(group, newName) {
+    var items = this._getGroupItems(group);
+    for(var i=0; i<items.length; i++) {
+      items[i].group = newName;
+    }
+    this._inflateGroups();
+  }
+
+  this.deleteGroup = function(group) {
+    var items = this._getGroupItems(group);
+    for(var i=0; i<items.length; i++) {
+      this.deleteItem(items[i].id);
+    }
+    this._inflateGroups();
   }
 
   this.clear = function() {
@@ -1659,21 +2678,41 @@ module.exports = function(container) {
   }
 
   this._inflateGroups = function() {
+    var tmpGroups = this._eventsContainer.getElementsByClassName("group");
+    for(var i=0; i<tmpGroups.length; i++) {
+      tmpGroups[i].removeEventListener("dblclick", this._onGroupDoubleClick);
+      tmpGroups[i].remove();
+    }
     this._eventsContainer.innerHTML = "";
 
     var groups = this._getGroups();
+
+    var addGroupLink = document.createElement("a");
+    addGroupLink.innerHTML = "(+) Add&hellip;";
+    addGroupLink.style.cssText = "display:block;background-color:#333;color:white;text-align:center";
+    addGroupLink.setAttribute("href", "javascript:");
+    addGroupLink.onclick = function() {thisobj.eventsManager.callHandlers("addtimelinegroup");}
+    groups.push(addGroupLink);
 
     //add groups
     for(var i=0;i<groups.length;i++) {
       var groupElem = document.createElement("div");
       groupElem.className = "group";
       groupElem.style.cssText = "position:relative;min-height:1.2em";
+      groupElem.groupName = groups[i];
+      if(typeof groups[i]=="string") {
+        groupElem.addEventListener("dblclick", this._onGroupDoubleClick);
+      }
 
       //add group label
       var groupLabel = document.createElement("div");
       groupLabel.className = "group-label";
       groupLabel.style.cssText = "position:absolute;top:0;left:"+(-this._groupLabelsWidth)+"px;width:"+this._groupLabelsWidth+"px;z-index:5";
-      groupLabel.innerHTML = "&nbsp;&nbsp;"+groups[i];
+      if(typeof groups[i]=="object") {
+        groupLabel.appendChild(groups[i]);
+      } else {
+        groupLabel.innerHTML = "&nbsp;&nbsp;"+groups[i];
+      }
       groupElem.appendChild(groupLabel);
 
       //add events
@@ -1689,6 +2728,13 @@ module.exports = function(container) {
       this._eventsContainer.appendChild(groupElem);
     }
 
+  }
+
+  this._onGroupDoubleClick = function(event) {
+    //console.log(this.groupName, clickTime);
+    event.stopPropagation();
+    var clickTime = thisobj._viewportStartTime+(event.clientX-thisobj._groupLabelsWidth)/thisobj._viewportScale*thisobj._viewportResolution;
+    thisobj.eventsManager.callHandlers("addevent", {group:this.groupName, time:clickTime});
   }
 
   this.setCurrentTime = function(newTime) {
@@ -1764,7 +2810,7 @@ function _TimelineDragHelper(element, onDrag) {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":17,"./tm-timeindicator.js":18}],16:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":20,"./tm-timeindicator.js":21}],19:[function(require,module,exports){
 module.exports = function(draggable, container, onDrag) {
 
   //--Variables--//
@@ -1830,7 +2876,7 @@ module.exports = function(draggable, container, onDrag) {
 
 }
 
-},{}],17:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports = function(timeline, timelineEvent, label) {
 
   var thisobj = this;
@@ -1949,6 +2995,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
   //Double click
   this._onDoubleClick = function(event) {
+    event.stopPropagation();
     thisobj._timeline.eventsManager.callHandlers("eventdoubleclick", thisobj._timelineEvent);
   }
   this._container.addEventListener("dblclick", this._onDoubleClick);
@@ -1975,7 +3022,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
 }
 
-},{"./tm-draghelper.js":16}],18:[function(require,module,exports){
+},{"./tm-draghelper.js":19}],21:[function(require,module,exports){
 module.exports = function(timeline) {
 
   var thisobj = this;
@@ -2029,7 +3076,7 @@ module.exports = function(timeline) {
 
 }
 
-},{"./tm-draghelper.js":16}],19:[function(require,module,exports){
+},{"./tm-draghelper.js":19}],22:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -2131,14 +3178,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],20:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],21:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -2306,7 +3353,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":24,"./dp-volumecontrol.js":28}],22:[function(require,module,exports){
+},{"./dp-languageselector.js":27,"./dp-volumecontrol.js":31}],25:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2341,7 +3388,7 @@ module.exports = function() {
 
 }
 
-},{}],23:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -2398,7 +3445,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],24:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2429,7 +3476,7 @@ module.exports = function() {
 
 }
 
-},{}],25:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -2459,7 +3506,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],26:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -2492,7 +3539,7 @@ module.exports={
 
 };
 
-},{}],27:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -2526,7 +3573,7 @@ module.exports = function() {
 
 }
 
-},{}],28:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -2587,7 +3634,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],29:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -2620,7 +3667,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.32.3";
+  this.PLAYER_VERSION = "0.33.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -2763,15 +3810,15 @@ module.exports = function(containerId, options) {
       thisobj.eventsManager.callHandlers("ready");
     }
 
+    this.time=0;
+    this.mtime=0;
+    this.loaded=false;
+
     if(typeof source=="string") {
       this.story.load(source);
     } else {
       this.story.loadFromObject(source);
     }
-
-    this.time=0;
-    this.mtime=0;
-    this.loaded=false;
 
     this.drawQueue.add(this.story.stagecurtain);
     this.drawQueue.add(this.story.viewport);
@@ -2784,6 +3831,7 @@ module.exports = function(containerId, options) {
     if(this.started!=2) {this.eventsManager.callHandlers("play");}
     this.started=2;
     if(this.loaded) {this.notificationbox.set();}
+    else {this.log.warning("Story not loaded!");}
     this.starttime=this._now()-this.time;
     this.mstarttime=this._now()-this.mtime;
     //play audio tracks
@@ -2950,6 +3998,10 @@ module.exports = function(containerId, options) {
     this.started=currentState;
   }
 
+  this.isPlaying = function() {
+    return this.started==2;
+  }
+
   //setVolume()
   //Sets the master volume of the player
   this.setVolume=function(volume, triggerEvent) {
@@ -2971,7 +4023,7 @@ module.exports = function(containerId, options) {
     var progress=assetsLoaded/totalAssets*100|0;
     thisobj.notificationbox.set("loading... "+progress+"%");
     thisobj.log.message(assetsLoaded+"/"+totalAssets, thisobj);
-    if(assetsLoaded==totalAssets) {
+    if(assetsLoaded>=totalAssets) {
       thisobj.loaded=true;
       if(thisobj.started==0) {thisobj.notificationbox.set(thisobj.story.title);}
 	  else {thisobj.notificationbox.set();}
@@ -2996,11 +4048,11 @@ module.exports = function(containerId, options) {
         //timeline
         while(this.tli<this.story.timeline.length&&this.time>=this.story.timeline[this.tli].time) {
           //this.info.print("timeline action at "+this.time);
-          if(this.story.timeline[this.tli].action=="show") {
+          if(typeof this.story.timeline[this.tli].action=="object" && this.story.timeline[this.tli].action!=null && this.story.timeline[this.tli].action.type=="show") {
             //add the actor to the drawing queue according to the z factor
             var actor=this.story.actors[this.story.timeline[this.tli].index];
             this.drawQueue.add(actor);
-          } else if(this.story.timeline[this.tli].action=="hide") {
+          } else if(typeof this.story.timeline[this.tli].action=="object" && this.story.timeline[this.tli].action!=null && this.story.timeline[this.tli].action.type=="hide") {
             //remove the actor from the drawing queue
             var actor=this.story.actors[this.story.timeline[this.tli].index];
             this.drawQueue.remove(actor);
@@ -3018,9 +4070,6 @@ module.exports = function(containerId, options) {
           } else if(this.story.timeline[this.tli].action!=null&&this.story.timeline[this.tli].audiotrack!=null) {
             var track=this.story.audiotracks[this.story.timeline[this.tli].index];
             track.action=this.story.timeline[this.tli].action;
-            if(track.action.type==ramp) { //TODO delete this
-              this.log.message("Ramp event",this);
-            }
           } else if(this.story.timeline[this.tli].subtitle!=null) {
             var subtitle=this.story.timeline[this.tli].subtitle;
             var lang=this.story.languages[this.currentLanguage];
@@ -3189,4 +4238,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":19,"./dp-constants.js":20,"./dp-controls.js":21,"./dp-drawqueue.js":22,"./dp-infobox.js":23,"./dp-messagesbox.js":25,"./dp-motions.js":26,"./dp-subtitlebox.js":27}]},{},[7]);
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":22,"./dp-constants.js":23,"./dp-controls.js":24,"./dp-drawqueue.js":25,"./dp-infobox.js":26,"./dp-messagesbox.js":28,"./dp-motions.js":29,"./dp-subtitlebox.js":30}]},{},[10]);

@@ -16,7 +16,9 @@ module.exports = function(eventEditor) {
   this._container.innerHTML = "Action ";
   //container > action selector
   this._actionSelect = document.createElement("select");
-  this._actionSelect.innerHTML = "<option value='movelin'>Linear Movement</option>"+
+  this._actionSelect.innerHTML = "<option value='show'>Show</option>"+
+                                  "<option value='hide'>Hide</option>"+
+                                  "<option value='movelin'>Linear Movement</option>"+
                                   "<option value='movesin'>Sinusoid Movement</option>"+
                                   "<option value='teleport'>Teleportation</option>"+
                                   "<option value='fadein'>Fade In</option>"+
@@ -29,6 +31,8 @@ module.exports = function(eventEditor) {
   this._propertiesContainer = document.createElement("div");
   this._container.appendChild(this._propertiesContainer);
   //
+  this._showProperties = new PropertyEditor([]);
+  this._hideProperties = new PropertyEditor([]);
   this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
   this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
   this._teleportProperties = new PropertyEditor([{name:"x", label:"Target X"}, {name:"y", label:"Target Y"}, {name:"z", label:"Target Z"}]);
@@ -72,6 +76,10 @@ module.exports = function(eventEditor) {
       return this._fadeinProperties;
     } else if(action=="fadeout") {
       return this._fadeoutProperties;
+    } else if(action=="show") {
+      return this._showProperties;
+    } else if(action=="hide") {
+      return this._hideProperties;
     }
   }
 
@@ -84,6 +92,7 @@ module.exports = function(eventEditor) {
   this.save = function() {
     this.currentEvent.action.type = this._actionSelect.value;
     var propertiesObject = this._getActionProperties(this.currentEvent.action.type);
+    if(typeof this.currentEvent.action.params=="undefined") {this.currentEvent.action.params = {};}
     propertiesObject.exportValues(this.currentEvent.action.params);
     console.log(this.currentEvent);
   }

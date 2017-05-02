@@ -116,6 +116,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
   //Double click
   this._onDoubleClick = function(event) {
+    event.stopPropagation();
     thisobj._timeline.eventsManager.callHandlers("eventdoubleclick", thisobj._timelineEvent);
   }
   this._container.addEventListener("dblclick", this._onDoubleClick);
