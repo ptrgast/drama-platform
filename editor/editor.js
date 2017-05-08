@@ -1853,9 +1853,9 @@ module.exports = function(eventEditor) {
   //
   this._showProperties = new PropertyEditor([]);
   this._hideProperties = new PropertyEditor([]);
-  this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
-  this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X"}, {name:"ty", label:"Target Y"}]);
-  this._teleportProperties = new PropertyEditor([{name:"x", label:"Target X"}, {name:"y", label:"Target Y"}, {name:"z", label:"Target Z"}]);
+  this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}]);
+  this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}]);
+  this._teleportProperties = new PropertyEditor([{name:"x", label:"Target X", type:"number"}, {name:"y", label:"Target Y", type:"number"}, {name:"z", label:"Target Z", type:"number"}]);
   this._fillProperties = new PropertyEditor([{name:"color", label:"Color (Hex with #)"}]);
   this._fadeinProperties = new PropertyEditor([]);
   this._fadeoutProperties = new PropertyEditor([]);
@@ -1937,12 +1937,14 @@ function PropertyEditor(properties) {
 
   this._init = function() {
     for(var i=0; i<properties.length; i++) {
-      var input = this._createInput(properties[i].label, properties[i].name);
+      var type = "text";
+      if(typeof properties[i].type!="undefined") {type = properties[i].type;}
+      var input = this._createInput(properties[i].label, properties[i].name, type);
       this._container.appendChild(input);
     }
   }
 
-  this._createInput = function(label, name) {
+  this._createInput = function(label, name, type) {
     var labelElem = document.createElement("label");
     labelElem.style.cssText = "display:block;margin-bottom:0.2em";
     labelElem.innerHTML = label+" ";
@@ -1951,6 +1953,7 @@ function PropertyEditor(properties) {
 
     var inputObject = {
       name: name,
+      type: type,
       element: inputElem
     };
     this._inputs.push(inputObject);
@@ -1969,7 +1972,11 @@ function PropertyEditor(properties) {
 
   this.exportValues = function(receiver) {
     for(var i=0; i<this._inputs.length; i++) {
-      receiver[this._inputs[i].name] = this._inputs[i].element.value;
+      if(this._inputs[i].type=="number") {
+        receiver[this._inputs[i].name] = this._inputs[i].element.value*1;
+      } else {
+        receiver[this._inputs[i].name] = this._inputs[i].element.value;
+      }
     }
   }
 
