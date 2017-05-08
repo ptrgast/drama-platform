@@ -2319,22 +2319,31 @@ module.exports = function() {
       height: story.height,
       actors: [],
       audiotracks: [],
-      timeline: story.timeline
+      timeline: []
     };
 
+    //cleanup timeline
+    var timeline = JSON.parse(JSON.stringify(story.timeline));
+    for(var i=0; i<timeline.length; i++) {
+      delete timeline[i]._id;
+    }
+    nakedStory.timeline = timeline;
+
+    //add actors
     for(var i=0; i<story.actors.length; i++) {
       if(story.actors[i]._origin!=null) {
         nakedStory.actors.push(story.actors[i]._origin);
       }
     }
 
+    //add audiotracks
     for(var i=0; i<story.audiotracks.length; i++) {
       if(story.audiotracks[i]._origin!=null) {
         nakedStory.audiotracks.push(story.audiotracks[i]._origin);
       }
     }
 
-    var serializedStory = JSON.stringify(nakedStory);
+    var serializedStory = JSON.stringify(nakedStory, null, " ");
     return serializedStory;
   }
 
