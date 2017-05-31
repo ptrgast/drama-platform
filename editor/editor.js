@@ -930,7 +930,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../popup/popup.js":15,"./mod-asseteditor.js":9}],9:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../popup/popup.js":16,"./mod-asseteditor.js":9}],9:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -1175,12 +1175,13 @@ drama.Editor = function(containerId) {
   this.TimelineEditor = require("./timeline/timeline.js");
   this.EventEditor = require("./eventeditor/eventeditor.js");
   this.StoryGlobalSettingsEditor = require("./storyglobalsettings/storyglobalsettings.js");
+  this.LoadHistory = require("./loadhistory/loadhistory.js");
   this.Popup = require("./popup/popup.js");
   this.Player = require("./../player/modules/player-main.js");
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.11";
+  this.EDITOR_VERSION = "0.12";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
@@ -1190,6 +1191,7 @@ drama.Editor = function(containerId) {
   this.popup = new this.Popup();
   this.storageHelper = new this.StorageHelper();
   this.storyGlobalSettingsEditor = new this.StoryGlobalSettingsEditor();
+  this.loadHistory = new this.LoadHistory();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -1237,10 +1239,11 @@ drama.Editor = function(containerId) {
           { text: 'New story', id: 'new-story'},
           { text: '--' },
           { text: 'Load from browser', id: 'load-local-storage'},
-    			{ text: 'Load from URL&hellip;', id: 'load-url'},
+          { text: 'Load from URL&hellip;', id: 'load-url'},
+          { text: 'Load history&hellip;', id: 'show-load-history'},
           { text: '--' },
           { text: 'Save to browser', id: 'save-local-storage'},
-    			{ text: 'Save to file', id: 'save-export'}
+          { text: 'Save to file', id: 'save-export'}
         ]},
         { type: 'break', id: 'break1' },
         { type: 'check', id: 'playback-ctls-play', text: 'Play', onClick: function(event){
@@ -1293,6 +1296,11 @@ drama.Editor = function(containerId) {
             //url
             var storyURL = prompt("Enter a story URL");
             if(storyURL!=null) {thisobj.player.loadStory(storyURL);}
+            thisobj.loadHistory.save(storyURL);
+          } else if(event.subItem.id=="show-load-history") {
+              thisobj.loadHistory.show(function(url) {
+                  thisobj.player.loadStory(url);
+              });
           }
           // Save
           else if(event.subItem.id=="save-local-storage") {
@@ -1709,7 +1717,7 @@ drama.Editor = function(containerId) {
       }
       asset._origin.url = asset.url;
       if(typeof asset.motion!="undefined" && asset.motion!=null) {asset._origin.motion = asset.motion;}
-      if(typeof asset.sprite!="undefined" && asset.sprite!=null) {asset._origin.sprite = asset.sprite;}      
+      if(typeof asset.sprite!="undefined" && asset.sprite!=null) {asset._origin.sprite = asset.sprite;}
     } else if(updatedAsset.type=="audiotrack") {
       var audiotracks = thisobj.player.story.audiotracks;
       for(var i=0; i<audiotracks.length; i++) {
@@ -1749,7 +1757,7 @@ drama.Editor = function(containerId) {
   }
 }
 
-},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":32,"./assetselector/assetselector.js":7,"./assetsmanager/assetsmanager.js":8,"./eventeditor/eventeditor.js":11,"./popup/popup.js":15,"./storagehelper/storagehelper.js":16,"./storyglobalsettings/storyglobalsettings.js":17,"./timeline/timeline.js":18}],11:[function(require,module,exports){
+},{"./../common/mod-log.js":3,"./../player/modules/player-main.js":33,"./assetselector/assetselector.js":7,"./assetsmanager/assetsmanager.js":8,"./eventeditor/eventeditor.js":11,"./loadhistory/loadhistory.js":15,"./popup/popup.js":16,"./storagehelper/storagehelper.js":17,"./storyglobalsettings/storyglobalsettings.js":18,"./timeline/timeline.js":19}],11:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -2136,6 +2144,143 @@ module.exports = function() {
 
   //--Prototypes & Includes--//
 
+  this.log = require("./../../common/mod-log.js");
+  this.Popup = require("./../popup/popup.js");
+
+  //--Variables--//
+
+  this._maxItems = 8;
+  this._historyKey = "url-history";
+  this._popup = new this.Popup();
+  this._handler = null;
+
+  //--Elements--//
+
+  this._historyContainer = document.createElement("div");
+  this._historyContainer.style.padding = "1em";
+
+  //--Functions--//
+
+  this.show = function(handler) {
+      this._handler = handler;
+
+      var history = this.getAll();
+
+      this._historyContainer.innerHTML = "";
+      for(var i=0; i<history.length; i++) {
+          var item = document.createElement("a");
+          item.innerHTML = history[i].url;
+          item.style.display = "block";
+          item.style.marginBottom = "0.5em";
+          item.setAttribute("href","javascript:");
+          item.onclick = thisobj._onItemClicked;
+          this._historyContainer.appendChild(item);
+      }
+      this._popup.show(
+          "History",
+          this._historyContainer,
+          600,
+          [{name:"Cancel", handler:function(){thisobj._popup.hide();}}]
+      );
+  }
+
+  this._onItemClicked = function () {
+      if(thisobj._handler!=null) {
+          thisobj._handler(this.innerHTML);
+      }
+      thisobj._popup.hide();
+  }
+
+  this.getAll = function() {
+      if(typeof(Storage)=="undefined") {
+        this.log.error("Web Storage is not supported by this browser!", this);
+        return [];
+      }
+
+      var serializedHistory = localStorage.getItem(this._historyKey);
+      if(serializedHistory==null || serializedHistory=="") {
+          serializedHistory = "[]";
+      }
+
+      var history = JSON.parse(serializedHistory);
+      history.sort(this._sort);
+      return history;
+  }
+
+  this.save = function(url) {
+      if(typeof(Storage)=="undefined") {
+        this.log.error("Web Storage is not supported by this browser!", this);
+        return;
+      }
+
+      var history = this.getAll();
+
+      // Check if url is already in history
+      var index = -1;
+      for(var i=0; i<history.length; i++) {
+          if(history[i].url==url) {
+              index = i;
+              break;
+          }
+      }
+
+      if(index>=0) {
+          history[index].date = new Date().getTime();
+      } else {
+          history.push(new HistoryObject(url));
+      }
+      history.sort(this._sort);
+
+      // Remove surplus items
+      while(history.length>this._maxItems) {
+          if(history.length-1<0) {break;}
+          history.splice(history.length-1, 1);
+      }
+
+      // Serialize & store
+      serializedHistory = JSON.stringify(history);
+      localStorage.setItem(this._historyKey, serializedHistory);
+  }
+
+  this.remove = function(url) {
+      if(typeof(Storage)=="undefined") {
+        this.log.error("Web Storage is not supported by this browser!", this);
+        return;
+      }
+
+      var history = this.getAll();
+
+      // Find & remove
+      for(var i=0; i<history.length; i++) {
+          if(history[i].url==url) {
+              history.splice(i, 1);
+              break;
+          }
+      }
+
+      // Serialize & store
+      var serializedHistory = JSON.stringify(history);
+      localStorage.setItem(this._historyKey, serializedHistory);
+  }
+
+  this._sort = function(a, b) {
+      return b.date-a.date;
+  }
+
+}
+
+function HistoryObject(url) {
+    this.url = url;
+    this.date = new Date().getTime();
+}
+
+},{"./../../common/mod-log.js":3,"./../popup/popup.js":16}],16:[function(require,module,exports){
+module.exports = function() {
+
+  var thisobj = this;
+
+  //--Prototypes & Includes--//
+
   this._ResizeDetector = require("./../../common/mod-resizedetector.js");
 
   //--Variables--//
@@ -2261,7 +2406,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-resizedetector.js":5}],16:[function(require,module,exports){
+},{"./../../common/mod-resizedetector.js":5}],17:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2369,7 +2514,7 @@ module.exports = function() {
 
 }
 
-},{"./../../common/mod-log.js":3}],17:[function(require,module,exports){
+},{"./../../common/mod-log.js":3}],18:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -2436,7 +2581,7 @@ module.exports = function() {
 
 }
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 module.exports = function(container) {
 
   var thisobj = this;
@@ -2826,7 +2971,7 @@ function _TimelineDragHelper(element, onDrag) {
 
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":20,"./tm-timeindicator.js":21}],19:[function(require,module,exports){
+},{"./../../common/mod-eventsmanager.js":2,"./tm-eventui.js":21,"./tm-timeindicator.js":22}],20:[function(require,module,exports){
 module.exports = function(draggable, container, onDrag) {
 
   //--Variables--//
@@ -2892,7 +3037,7 @@ module.exports = function(draggable, container, onDrag) {
 
 }
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 module.exports = function(timeline, timelineEvent, label) {
 
   var thisobj = this;
@@ -3038,7 +3183,7 @@ module.exports = function(timeline, timelineEvent, label) {
 
 }
 
-},{"./tm-draghelper.js":19}],21:[function(require,module,exports){
+},{"./tm-draghelper.js":20}],22:[function(require,module,exports){
 module.exports = function(timeline) {
 
   var thisobj = this;
@@ -3092,7 +3237,7 @@ module.exports = function(timeline) {
 
 }
 
-},{"./tm-draghelper.js":19}],22:[function(require,module,exports){
+},{"./tm-draghelper.js":20}],23:[function(require,module,exports){
 //////////// Actions ////////////
 var actions={};
 
@@ -3194,14 +3339,14 @@ actions.movesin = {
 
 module.exports=actions;
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports={
   PI360:2*Math.PI,
   PI180:Math.PI,
   PI90:Math.PI/2
 };
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 var VolumeControl=require("./dp-volumecontrol.js");
 
 //PlayerControls
@@ -3369,7 +3514,7 @@ module.exports = function(player) {
 	setInterval(this.refresh,1000);
 }
 
-},{"./dp-languageselector.js":27,"./dp-volumecontrol.js":31}],25:[function(require,module,exports){
+},{"./dp-languageselector.js":28,"./dp-volumecontrol.js":32}],26:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -3404,7 +3549,7 @@ module.exports = function() {
 
 }
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
@@ -3461,7 +3606,7 @@ module.exports = function(player) {
   return this;
 }
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = function() {
 
   var thisobj = this;
@@ -3492,7 +3637,7 @@ module.exports = function() {
 
 }
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 // Displays the story title, the loading progress and the player status
 module.exports = function(player) {
   var thisobj=this;
@@ -3522,7 +3667,7 @@ module.exports = function(player) {
   player.eventsManager.addListener("resize",function(){thisobj.onresize()})
 }
 
-},{}],29:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 //////////// Motion Functions ////////////
 module.exports={
 
@@ -3555,7 +3700,7 @@ module.exports={
 
 };
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 //////////// SubtitleBox ////////////
 module.exports = function() {
 	this.container=document.createElement("div");
@@ -3589,7 +3734,7 @@ module.exports = function() {
 
 }
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports = function(value) {
 	//create elements
 	this.container=document.createElement("div");
@@ -3650,7 +3795,7 @@ module.exports = function(value) {
 	if(value) {this.setValue(value);}
 }
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 //author: ptrgast
 
 //Create a package like hierarchy
@@ -4254,4 +4399,4 @@ function drop(t,actor,params) {
   }
 }
 
-},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":22,"./dp-constants.js":23,"./dp-controls.js":24,"./dp-drawqueue.js":25,"./dp-infobox.js":26,"./dp-messagesbox.js":28,"./dp-motions.js":29,"./dp-subtitlebox.js":30}]},{},[10]);
+},{"./../../common/mod-eventsmanager.js":2,"./../../common/mod-log.js":3,"./../../common/mod-optionsmanager.js":4,"./../../common/mod-resizedetector.js":5,"./../../common/mod-story.js":6,"./dp-actions.js":23,"./dp-constants.js":24,"./dp-controls.js":25,"./dp-drawqueue.js":26,"./dp-infobox.js":27,"./dp-messagesbox.js":29,"./dp-motions.js":30,"./dp-subtitlebox.js":31}]},{},[10]);

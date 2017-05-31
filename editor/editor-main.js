@@ -12,12 +12,13 @@ drama.Editor = function(containerId) {
   this.TimelineEditor = require("./timeline/timeline.js");
   this.EventEditor = require("./eventeditor/eventeditor.js");
   this.StoryGlobalSettingsEditor = require("./storyglobalsettings/storyglobalsettings.js");
+  this.LoadHistory = require("./loadhistory/loadhistory.js");
   this.Popup = require("./popup/popup.js");
   this.Player = require("./../player/modules/player-main.js");
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.11";
+  this.EDITOR_VERSION = "0.12";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
@@ -27,6 +28,7 @@ drama.Editor = function(containerId) {
   this.popup = new this.Popup();
   this.storageHelper = new this.StorageHelper();
   this.storyGlobalSettingsEditor = new this.StoryGlobalSettingsEditor();
+  this.loadHistory = new this.LoadHistory();
 
   //check that the required libraries are present
   if(typeof jQuery=="undefined") { this.log.error("The Drama Platform Editor requires jQuery to work!", this); return;}
@@ -74,10 +76,11 @@ drama.Editor = function(containerId) {
           { text: 'New story', id: 'new-story'},
           { text: '--' },
           { text: 'Load from browser', id: 'load-local-storage'},
-    			{ text: 'Load from URL&hellip;', id: 'load-url'},
+          { text: 'Load from URL&hellip;', id: 'load-url'},
+          { text: 'Load history&hellip;', id: 'show-load-history'},
           { text: '--' },
           { text: 'Save to browser', id: 'save-local-storage'},
-    			{ text: 'Save to file', id: 'save-export'}
+          { text: 'Save to file', id: 'save-export'}
         ]},
         { type: 'break', id: 'break1' },
         { type: 'check', id: 'playback-ctls-play', text: 'Play', onClick: function(event){
@@ -130,6 +133,11 @@ drama.Editor = function(containerId) {
             //url
             var storyURL = prompt("Enter a story URL");
             if(storyURL!=null) {thisobj.player.loadStory(storyURL);}
+            thisobj.loadHistory.save(storyURL);
+          } else if(event.subItem.id=="show-load-history") {
+              thisobj.loadHistory.show(function(url) {
+                  thisobj.player.loadStory(url);
+              });
           }
           // Save
           else if(event.subItem.id=="save-local-storage") {
@@ -546,7 +554,7 @@ drama.Editor = function(containerId) {
       }
       asset._origin.url = asset.url;
       if(typeof asset.motion!="undefined" && asset.motion!=null) {asset._origin.motion = asset.motion;}
-      if(typeof asset.sprite!="undefined" && asset.sprite!=null) {asset._origin.sprite = asset.sprite;}      
+      if(typeof asset.sprite!="undefined" && asset.sprite!=null) {asset._origin.sprite = asset.sprite;}
     } else if(updatedAsset.type=="audiotrack") {
       var audiotracks = thisobj.player.story.audiotracks;
       for(var i=0; i<audiotracks.length; i++) {
