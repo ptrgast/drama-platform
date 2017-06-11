@@ -1181,7 +1181,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.12";
+  this.EDITOR_VERSION = "0.12.1";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
@@ -1492,13 +1492,12 @@ drama.Editor = function(containerId) {
         timelineEvent.action.params.tt = eventUI.endTime;
       }
     }
-    //console.log(eventUI, story.timeline[eventUI.id]);
+    // console.log(eventUI, timelineEvent);
     story._sortTimeline();
   }
   this.timelineEditor.eventsManager.addListener("eventchange", this._onEventChange);
 
   this._onAddEvent = function(tmp) {
-    console.log(tmp);
     //get the max ID
     var maxId = thisobj.player.story.getMaxId();
 
@@ -1555,6 +1554,9 @@ drama.Editor = function(containerId) {
     thisobj.eventEditor.save();
     var currentEventId = thisobj.eventEditor.currentView.currentEvent._id;
     var currentEvent = thisobj._getTimelineEventById(currentEventId);
+    if(typeof currentEvent.action.params.tt!="undefined") {
+      thisobj.timelineEditor.setItemEndTime(currentEventId, currentEvent.action.params.tt);
+    }
     var newLabel = thisobj._getTimelineEventLabel(currentEvent);
     thisobj.timelineEditor.renameItem(currentEventId, newLabel);
     thisobj.popup.hide();
@@ -1861,12 +1863,12 @@ module.exports = function(eventEditor) {
   //
   this._showProperties = new PropertyEditor([]);
   this._hideProperties = new PropertyEditor([]);
-  this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}]);
-  this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}]);
+  this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}], [{name:"tt", label:"Target T", type:"number"}]);
+  this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}], [{name:"tt", label:"Target T", type:"number"}]);
   this._teleportProperties = new PropertyEditor([{name:"x", label:"Target X", type:"number"}, {name:"y", label:"Target Y", type:"number"}, {name:"z", label:"Target Z", type:"number"}]);
   this._fillProperties = new PropertyEditor([{name:"color", label:"Color (Hex with #)"}]);
-  this._fadeinProperties = new PropertyEditor([]);
-  this._fadeoutProperties = new PropertyEditor([]);
+  this._fadeinProperties = new PropertyEditor([], [{name:"tt", label:"Target T", type:"number"}]);
+  this._fadeoutProperties = new PropertyEditor([], [{name:"tt", label:"Target T", type:"number"}]);
 
   //--Functions--//
 
@@ -1880,12 +1882,17 @@ module.exports = function(eventEditor) {
       if(currentAction=="movesin" || currentAction=="movelin") {
         propertiesObject.setValue("tx", timelineEvent.action.params.tx);
         propertiesObject.setValue("ty", timelineEvent.action.params.ty);
+        propertiesObject.setValue("tt", timelineEvent.action.params.tt);
       } else if(currentAction=="teleport") {
         propertiesObject.setValue("x", timelineEvent.action.params.x);
         propertiesObject.setValue("y", timelineEvent.action.params.y);
         propertiesObject.setValue("z", timelineEvent.action.params.z);
       } else if(currentAction=="fill") {
         propertiesObject.setValue("color", timelineEvent.action.params.color);
+      } else if(currentAction=="fadein") {
+        propertiesObject.setValue("tt", timelineEvent.action.params.tt);
+      } else if(currentAction=="fadeout") {
+        propertiesObject.setValue("tt", timelineEvent.action.params.tt);
       }
       this._showActionProperties(currentAction);
     }
@@ -1927,7 +1934,7 @@ module.exports = function(eventEditor) {
 
 }
 
-function PropertyEditor(properties) {
+function PropertyEditor(properties, hiddenProperties) {
 
   thisobj = this;
 
@@ -1950,14 +1957,24 @@ function PropertyEditor(properties) {
       var input = this._createInput(properties[i].label, properties[i].name, type);
       this._container.appendChild(input);
     }
+    if(hiddenProperties!=null) {
+      for(var i=0; i<hiddenProperties.length; i++) {
+        var type = "text";
+        if(typeof hiddenProperties[i].type!="undefined") {type = hiddenProperties[i].type;}
+        var input = this._createInput(hiddenProperties[i].label, hiddenProperties[i].name, type, true);
+        this._container.appendChild(input);
+      }
+    }
   }
 
-  this._createInput = function(label, name, type) {
+  this._createInput = function(label, name, type, hidden) {
     var labelElem = document.createElement("label");
     labelElem.style.cssText = "display:block;margin-bottom:0.2em";
+    if(hidden==true) {labelElem.style.display = "none";}
     labelElem.innerHTML = label+" ";
     var inputElem = document.createElement("input");
     labelElem.appendChild(inputElem);
+
 
     var inputObject = {
       name: name,
@@ -2597,7 +2614,7 @@ module.exports = function(container) {
   this._items = [];
   this._viewportStartTime = 0;
   this._viewportResolution = 2; //msec per pixel
-  this._viewportScale = 1.0;
+  this._viewportScale = 0.5;
   this._groupLabelsWidth = 120;
   this._currentTime = 0;
   this.eventsManager=new this._EventsManager();
@@ -2652,6 +2669,15 @@ module.exports = function(container) {
       if(this._UIItems[i]._timelineEvent.id==id) {
         this._UIItems[i]._timelineEvent.name = name;
         this._UIItems[i]._labelElem.innerHTML = name;
+        return;
+      }
+    }
+  }
+
+  this.setItemEndTime = function(id, time) {
+    for(var i=0; i<this._items.length; i++) {
+      if(this._items[i].id==id) {
+        this._items[i].endTime = time;
         return;
       }
     }
@@ -3118,7 +3144,7 @@ module.exports = function(timeline, timelineEvent, label) {
   this._dragEndTime = 0;
   this._onRightHandleDrag = function(dragEvent) {
     if(dragEvent.started) {
-      this._dragEndTime = this._timelineEvent.endTime;
+      this._dragEndTime = (this._timelineEvent.endTime<this._timelineEvent.startTime)?this._timelineEvent.startTime:this._timelineEvent.endTime;
     } else if(!dragEvent.ended) {
       var newEndTime = (dragEvent.dx*timeline._viewportResolution/timeline._viewportScale)|0;
       if(this._dragEndTime+newEndTime>this._timelineEvent.startTime) {

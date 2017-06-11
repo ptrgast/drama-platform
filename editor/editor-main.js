@@ -18,7 +18,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.12";
+  this.EDITOR_VERSION = "0.12.1";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
@@ -329,13 +329,12 @@ drama.Editor = function(containerId) {
         timelineEvent.action.params.tt = eventUI.endTime;
       }
     }
-    //console.log(eventUI, story.timeline[eventUI.id]);
+    // console.log(eventUI, timelineEvent);
     story._sortTimeline();
   }
   this.timelineEditor.eventsManager.addListener("eventchange", this._onEventChange);
 
   this._onAddEvent = function(tmp) {
-    console.log(tmp);
     //get the max ID
     var maxId = thisobj.player.story.getMaxId();
 
@@ -392,6 +391,9 @@ drama.Editor = function(containerId) {
     thisobj.eventEditor.save();
     var currentEventId = thisobj.eventEditor.currentView.currentEvent._id;
     var currentEvent = thisobj._getTimelineEventById(currentEventId);
+    if(typeof currentEvent.action.params.tt!="undefined") {
+      thisobj.timelineEditor.setItemEndTime(currentEventId, currentEvent.action.params.tt);
+    }
     var newLabel = thisobj._getTimelineEventLabel(currentEvent);
     thisobj.timelineEditor.renameItem(currentEventId, newLabel);
     thisobj.popup.hide();

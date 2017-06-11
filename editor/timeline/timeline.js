@@ -13,7 +13,7 @@ module.exports = function(container) {
   this._items = [];
   this._viewportStartTime = 0;
   this._viewportResolution = 2; //msec per pixel
-  this._viewportScale = 1.0;
+  this._viewportScale = 0.5;
   this._groupLabelsWidth = 120;
   this._currentTime = 0;
   this.eventsManager=new this._EventsManager();
@@ -68,6 +68,15 @@ module.exports = function(container) {
       if(this._UIItems[i]._timelineEvent.id==id) {
         this._UIItems[i]._timelineEvent.name = name;
         this._UIItems[i]._labelElem.innerHTML = name;
+        return;
+      }
+    }
+  }
+
+  this.setItemEndTime = function(id, time) {
+    for(var i=0; i<this._items.length; i++) {
+      if(this._items[i].id==id) {
+        this._items[i].endTime = time;
         return;
       }
     }

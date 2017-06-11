@@ -33,12 +33,12 @@ module.exports = function(eventEditor) {
   //
   this._showProperties = new PropertyEditor([]);
   this._hideProperties = new PropertyEditor([]);
-  this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}]);
-  this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}]);
+  this._movelinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}], [{name:"tt", label:"Target T", type:"number"}]);
+  this._movesinProperties = new PropertyEditor([{name:"tx", label:"Target X", type:"number"}, {name:"ty", label:"Target Y", type:"number"}], [{name:"tt", label:"Target T", type:"number"}]);
   this._teleportProperties = new PropertyEditor([{name:"x", label:"Target X", type:"number"}, {name:"y", label:"Target Y", type:"number"}, {name:"z", label:"Target Z", type:"number"}]);
   this._fillProperties = new PropertyEditor([{name:"color", label:"Color (Hex with #)"}]);
-  this._fadeinProperties = new PropertyEditor([]);
-  this._fadeoutProperties = new PropertyEditor([]);
+  this._fadeinProperties = new PropertyEditor([], [{name:"tt", label:"Target T", type:"number"}]);
+  this._fadeoutProperties = new PropertyEditor([], [{name:"tt", label:"Target T", type:"number"}]);
 
   //--Functions--//
 
@@ -52,12 +52,17 @@ module.exports = function(eventEditor) {
       if(currentAction=="movesin" || currentAction=="movelin") {
         propertiesObject.setValue("tx", timelineEvent.action.params.tx);
         propertiesObject.setValue("ty", timelineEvent.action.params.ty);
+        propertiesObject.setValue("tt", timelineEvent.action.params.tt);
       } else if(currentAction=="teleport") {
         propertiesObject.setValue("x", timelineEvent.action.params.x);
         propertiesObject.setValue("y", timelineEvent.action.params.y);
         propertiesObject.setValue("z", timelineEvent.action.params.z);
       } else if(currentAction=="fill") {
         propertiesObject.setValue("color", timelineEvent.action.params.color);
+      } else if(currentAction=="fadein") {
+        propertiesObject.setValue("tt", timelineEvent.action.params.tt);
+      } else if(currentAction=="fadeout") {
+        propertiesObject.setValue("tt", timelineEvent.action.params.tt);
       }
       this._showActionProperties(currentAction);
     }
@@ -99,7 +104,7 @@ module.exports = function(eventEditor) {
 
 }
 
-function PropertyEditor(properties) {
+function PropertyEditor(properties, hiddenProperties) {
 
   thisobj = this;
 
@@ -122,14 +127,24 @@ function PropertyEditor(properties) {
       var input = this._createInput(properties[i].label, properties[i].name, type);
       this._container.appendChild(input);
     }
+    if(hiddenProperties!=null) {
+      for(var i=0; i<hiddenProperties.length; i++) {
+        var type = "text";
+        if(typeof hiddenProperties[i].type!="undefined") {type = hiddenProperties[i].type;}
+        var input = this._createInput(hiddenProperties[i].label, hiddenProperties[i].name, type, true);
+        this._container.appendChild(input);
+      }
+    }
   }
 
-  this._createInput = function(label, name, type) {
+  this._createInput = function(label, name, type, hidden) {
     var labelElem = document.createElement("label");
     labelElem.style.cssText = "display:block;margin-bottom:0.2em";
+    if(hidden==true) {labelElem.style.display = "none";}
     labelElem.innerHTML = label+" ";
     var inputElem = document.createElement("input");
     labelElem.appendChild(inputElem);
+
 
     var inputObject = {
       name: name,

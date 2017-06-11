@@ -78,7 +78,7 @@ module.exports = function(timeline, timelineEvent, label) {
   this._dragEndTime = 0;
   this._onRightHandleDrag = function(dragEvent) {
     if(dragEvent.started) {
-      this._dragEndTime = this._timelineEvent.endTime;
+      this._dragEndTime = (this._timelineEvent.endTime<this._timelineEvent.startTime)?this._timelineEvent.startTime:this._timelineEvent.endTime;
     } else if(!dragEvent.ended) {
       var newEndTime = (dragEvent.dx*timeline._viewportResolution/timeline._viewportScale)|0;
       if(this._dragEndTime+newEndTime>this._timelineEvent.startTime) {
