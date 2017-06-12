@@ -18,7 +18,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.12.1";
+  this.EDITOR_VERSION = "0.13.0";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
@@ -214,6 +214,7 @@ drama.Editor = function(containerId) {
   }
 
   this._inflateAssetsManager = function(story) {
+    this.assetsManager.setBaseURL(story._storyURL);    
     this.assetsManager.clear();
     for(var i=0; i<story.actors.length; i++) {
       var actor = story.actors[i];

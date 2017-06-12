@@ -15,6 +15,7 @@ module.exports = function() {
   this.eventsManager = new this._EventsManager();
   this._assetEditor = new this._AssetEditor();
   this._popup = new this._Popup();
+  this._baseURL = null;
 
   //--Elements--//
 
@@ -50,6 +51,10 @@ module.exports = function() {
   this._removeAssetButton.style.cssText = "line-height:1.5em;width:32%";
   this._removeAssetButton.innerHTML = "Remove";
   this._controlsElem.appendChild(this._removeAssetButton);
+
+  this.setBaseURL = function(baseURL) {
+    this._baseURL = baseURL;
+  }
 
   this.clear = function() {
     this._listElem.innerHTML = "";
@@ -92,7 +97,7 @@ module.exports = function() {
 
   this._assetDoubleClicked = function(asset) {
     asset.setSelected(true);
-    thisobj._assetEditor.editAsset(asset);
+    thisobj._assetEditor.editAsset(asset, thisobj._baseURL);
     thisobj._popup.show("Edit &quot;"+asset.name+"&quot;", thisobj._assetEditor._container, null, [
       {name:"Cancel",handler:function(){thisobj._popup.hide();}},
       {name:"OK",handler:function() {

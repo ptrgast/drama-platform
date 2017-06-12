@@ -384,7 +384,6 @@ module.exports = function() {
 
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
-      console.log("loading from>", assetsPath);
       story.actors[i] = new MovableObject().initWithActor(
         story.actors[i],
         function() {thisobj._assetLoaded();},
@@ -777,6 +776,7 @@ module.exports = function() {
   this.eventsManager = new this._EventsManager();
   this._assetEditor = new this._AssetEditor();
   this._popup = new this._Popup();
+  this._baseURL = null;
 
   //--Elements--//
 
@@ -812,6 +812,10 @@ module.exports = function() {
   this._removeAssetButton.style.cssText = "line-height:1.5em;width:32%";
   this._removeAssetButton.innerHTML = "Remove";
   this._controlsElem.appendChild(this._removeAssetButton);
+
+  this.setBaseURL = function(baseURL) {
+    this._baseURL = baseURL;
+  }
 
   this.clear = function() {
     this._listElem.innerHTML = "";
@@ -854,7 +858,7 @@ module.exports = function() {
 
   this._assetDoubleClicked = function(asset) {
     asset.setSelected(true);
-    thisobj._assetEditor.editAsset(asset);
+    thisobj._assetEditor.editAsset(asset, thisobj._baseURL);
     thisobj._popup.show("Edit &quot;"+asset.name+"&quot;", thisobj._assetEditor._container, null, [
       {name:"Cancel",handler:function(){thisobj._popup.hide();}},
       {name:"OK",handler:function() {
@@ -1106,7 +1110,9 @@ module.exports = function() {
 
   //--Functions--//
 
-  this.editAsset = function(asset) {
+  this.editAsset = function(asset, baseURL) {
+    if(typeof baseURL=="undefined" || baseURL==null) {baseURL = "";}
+
     if(asset=="actor") {
       asset = {};
       asset.name = "";
@@ -1135,7 +1141,7 @@ module.exports = function() {
     this._containerBody.children["url"].value = asset.url;
 
     if(asset.type=="actor") {
-      this._containerBody.children[0].setAttribute("src",asset.url);
+      this._containerBody.children[0].setAttribute("src", this._addBaseToURL(asset.url, baseURL));
       this._actorEditor.children[0].children["x"].value = asset.settings.x;
       this._actorEditor.children[0].children["y"].value = asset.settings.y;
       this._actorEditor.children[0].children["z"].value = asset.settings.z;
@@ -1198,6 +1204,35 @@ module.exports = function() {
     return updatedAsset;
   }
 
+  this._getPathFromURL = function(url) {
+    if(url==null) {return "";}
+
+    var lastSlashIndex = url.lastIndexOf("/");
+    if(lastSlashIndex>0) {
+      return url.substr(0, lastSlashIndex+1);
+    } else {
+      return "";
+    }
+  }
+
+  this._addBaseToURL = function(url, baseURL) {
+    var protocolRegex = /[a-zA-Z0-9]+:\/\//g;
+
+    // Absolute paths
+    if(url[0]=="/" || protocolRegex.exec(url)!=null) {
+      return url;
+    }
+    // Relative paths
+    else {
+      if(baseURL==null) {
+        return url;
+      } else {
+        // Remove any files from the path
+        return this._getPathFromURL(baseURL)+url;
+      }
+    }
+  }
+
 }
 
 },{}],10:[function(require,module,exports){
@@ -1221,7 +1256,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.12.1";
+  this.EDITOR_VERSION = "0.13.0";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
@@ -1417,6 +1452,7 @@ drama.Editor = function(containerId) {
   }
 
   this._inflateAssetsManager = function(story) {
+    this.assetsManager.setBaseURL(story._storyURL);    
     this.assetsManager.clear();
     for(var i=0; i<story.actors.length; i++) {
       var actor = story.actors[i];
@@ -3894,7 +3930,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.33.0";
+  this.PLAYER_VERSION = "0.34.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;

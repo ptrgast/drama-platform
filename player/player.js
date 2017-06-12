@@ -384,7 +384,6 @@ module.exports = function() {
 
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
-      console.log("loading from>", assetsPath);
       story.actors[i] = new MovableObject().initWithActor(
         story.actors[i],
         function() {thisobj._assetLoaded();},
@@ -1295,7 +1294,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.33.0";
+  this.PLAYER_VERSION = "0.34.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;

@@ -133,7 +133,9 @@ module.exports = function() {
 
   //--Functions--//
 
-  this.editAsset = function(asset) {
+  this.editAsset = function(asset, baseURL) {
+    if(typeof baseURL=="undefined" || baseURL==null) {baseURL = "";}
+
     if(asset=="actor") {
       asset = {};
       asset.name = "";
@@ -162,7 +164,7 @@ module.exports = function() {
     this._containerBody.children["url"].value = asset.url;
 
     if(asset.type=="actor") {
-      this._containerBody.children[0].setAttribute("src",asset.url);
+      this._containerBody.children[0].setAttribute("src", this._addBaseToURL(asset.url, baseURL));
       this._actorEditor.children[0].children["x"].value = asset.settings.x;
       this._actorEditor.children[0].children["y"].value = asset.settings.y;
       this._actorEditor.children[0].children["z"].value = asset.settings.z;
@@ -223,6 +225,35 @@ module.exports = function() {
       updatedAsset.volume = this._audiotrackVolume.value*1;
     }
     return updatedAsset;
+  }
+
+  this._getPathFromURL = function(url) {
+    if(url==null) {return "";}
+
+    var lastSlashIndex = url.lastIndexOf("/");
+    if(lastSlashIndex>0) {
+      return url.substr(0, lastSlashIndex+1);
+    } else {
+      return "";
+    }
+  }
+
+  this._addBaseToURL = function(url, baseURL) {
+    var protocolRegex = /[a-zA-Z0-9]+:\/\//g;
+
+    // Absolute paths
+    if(url[0]=="/" || protocolRegex.exec(url)!=null) {
+      return url;
+    }
+    // Relative paths
+    else {
+      if(baseURL==null) {
+        return url;
+      } else {
+        // Remove any files from the path
+        return this._getPathFromURL(baseURL)+url;
+      }
+    }
   }
 
 }

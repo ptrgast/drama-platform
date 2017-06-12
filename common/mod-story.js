@@ -109,7 +109,6 @@ module.exports = function() {
 
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
-      console.log("loading from>", assetsPath);
       story.actors[i] = new MovableObject().initWithActor(
         story.actors[i],
         function() {thisobj._assetLoaded();},
