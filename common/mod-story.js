@@ -1,34 +1,36 @@
 module.exports = function() {
-  var thisobj=this;
-  this.STATUS_NOT_LOADED=0;
-  this.STATUS_LOADING=1;
-  this.STATUS_LOADED=2;
 
-  this.log=require("./mod-log.js");
-  this.AudioTrack=require("./mod-audiotrack.js");
-  this._logName="Story";
-  this._status=this.STATUS_NOT_LOADED;
-  this._assetsPath="";
-  this._loadCounter=0;
-  this._totalAssets=0;
+  var thisobj = this;
+  this.STATUS_NOT_LOADED = 0;
+  this.STATUS_LOADING = 1;
+  this.STATUS_LOADED = 2;
 
-  this.format=null;
-  this.title="Untitled";
-  this.width=0;
-  this.height=0;
-  this.actors=[];
-  this.audiotracks=[];
-  this.timeline=[];
-  this.languages=[];
+  this.log = require("./mod-log.js");
+  this.AudioTrack = require("./mod-audiotrack.js");
+  this._logName = "Story";
+  this._status = this.STATUS_NOT_LOADED;
+  this._storyURL = null;
+  this._baseURL = null;
+  this._loadCounter = 0;
+  this._totalAssets = 0;
+
+  this.format = null;
+  this.title = "Untitled";
+  this.width = 0;
+  this.height = 0;
+  this.actors = [];
+  this.audiotracks = [];
+  this.timeline = [];
+  this.languages = [];
 
   //Create the system actors
   this.trigger=new MovableObject().initWithZ("trigger",9997);
   this.stagecurtain=new MovableObject().initWithZ("stagecurtain",9998);
   this.viewport=new MovableObject().initWithZ("viewport",9999);
 
-  /** Loads a story from a URL. If you provide the assetsPath then every asset
-  URL will be prefixed with this path **/
-  this.load=function(url,assetsPath) {
+  /** Loads a story from a URL. If you provide a baseURL it will be used as a
+  base to every relative URL in the story including the story URL  **/
+  this.load=function(url, baseURL) {
     //Check that this story is still intact
     if(this._status!=this.STATUS_NOT_LOADED) {
       this.log.error("This story object is already loaded or is still loading!", this);
@@ -43,9 +45,10 @@ module.exports = function() {
 
     this.log.message("Loading "+url+"...", this);
     this._status=this.STATUS_LOADING;
-    if(typeof assetsPath!="undefined") {this._assetsPath=assetsPath;}
+    this._storyURL = url;
+    if(typeof baseURL!="undefined") {this._baseURL=baseURL;}
     var request=new XMLHttpRequest();
-    request.open("GET",url);
+    request.open("GET",this.addBaseToURL(url, baseURL));
 
     //handle response
     request.addEventListener("load",function() {
@@ -97,12 +100,20 @@ module.exports = function() {
     this.width = story.width;
     this.height = story.height;
 
+    var assetsPath = "";
+    if(this._baseURL!=null && this._baseURL!="") {
+      assetsPath = this._baseURL;
+    } else {
+      assetsPath = this.getPathFromURL(this._storyURL);
+    }
+
     //Load actor images
     for(var i=0;i<story.actors.length;i++) {
+      console.log("loading from>", assetsPath);
       story.actors[i] = new MovableObject().initWithActor(
         story.actors[i],
         function() {thisobj._assetLoaded();},
-        this._assetsPath
+        assetsPath
       );
     }
 
@@ -111,7 +122,7 @@ module.exports = function() {
         story.audiotracks[i]=new this.AudioTrack(
           story.audiotracks[i],
           function() {thisobj._assetLoaded();},
-          this._assetsPath
+          assetsPath
         );
     }
 
@@ -264,7 +275,7 @@ module.exports = function() {
   }
 
   this.addActor = function(actor) {
-    var newActor = new MovableObject().initWithActor(actor, function() {}, this._assetsPath);
+    var newActor = new MovableObject().initWithActor(actor, function() {}, this._baseURL);
     this.actors.push(newActor);
   }
 
@@ -320,6 +331,35 @@ module.exports = function() {
       if(this.timeline[i]._id==eventId) {
         this.timeline.splice(i, 1);
         return;
+      }
+    }
+  }
+
+  this.getPathFromURL = function(url) {
+    if(url==null) {return "";}
+
+    var lastSlashIndex = url.lastIndexOf("/");
+    if(lastSlashIndex>0) {
+      return url.substr(0, lastSlashIndex+1);
+    } else {
+      return "";
+    }
+  }
+
+  this.addBaseToURL = function(url, baseURL) {
+    var protocolRegex = /[a-zA-Z0-9]+:\/\//g;
+
+    // Absolute paths
+    if(url[0]=="/" || protocolRegex.exec(url)!=null) {
+      return url;
+    }
+    // Relative paths
+    else {
+      if(baseURL==null) {
+        return url;
+      } else {
+        // Remove any files from the path
+        return this.getPathFromURL(baseURL)+url;
       }
     }
   }
