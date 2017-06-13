@@ -30,7 +30,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.34.0";
+  this.PLAYER_VERSION = "0.34.1";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -164,6 +164,13 @@ module.exports = function(containerId, options) {
   //loadStory()
   //Loads a new story to the player (url or story object)
   this.loadStory=function(source) {
+    // stop playback
+    if(this.started!=0) {
+      this.stop();
+      this.drawQueue.reset(); //stop resets the draw queue but add the default actor back in
+      this.controlsbox.refresh();
+    }
+
     this.eventsManager.callHandlers("loading");
     this.story=new this.Story();
     this.story.onprogress=this.refreshProgress;

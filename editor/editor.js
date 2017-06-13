@@ -3514,6 +3514,7 @@ module.exports = function(player) {
 			thisobj.playButton.style.backgroundImage="url("+imgPlay+")";
 		}
 	}
+
 	//stop
 	this.stopButton=document.createElement("div");
   this.stopButton.style.cssText = controlsCss+"background:url("+imgStop+") no-repeat center;";
@@ -3521,10 +3522,12 @@ module.exports = function(player) {
 		thisobj.player.stop();
 		thisobj.playButton.style.backgroundImage="url("+imgPlay+")";
 	}
+
 	//fullscreen
 	this.fullscreenButton = document.createElement("div");
   this.fullscreenButton.style.cssText = controlsCss+"background:url("+imgFullscreen+") no-repeat center;";
 	this.fullscreenButton.onclick = function() {thisobj.player.toggleFullscreen();}
+
 	//mute
 	this.muteButton=document.createElement("div");
     this.muteButton.style.cssText = controlsCss+"background:url("+imgSoundOn+") no-repeat center;";
@@ -3540,6 +3543,7 @@ module.exports = function(player) {
 			thisobj.player.setVolume(0);
 		}
 	}
+
 	//volume
 	this.volumeControl=new VolumeControl(0);
 	this.volumeControl.container.style.display="inline-block";
@@ -3557,10 +3561,12 @@ module.exports = function(player) {
 		}
 		thisobj.volumeControl.setValue(volume);
 	});
+
 	//time indicator
 	this.timeIndicator = document.createElement("span");
 	this.timeIndicator.style.cssText = "color:#ccc;vertical-align:top;font-family:Sans-serif;font-size:28px;margin:0 15px;line-height:40px;";
 	this.timeIndicator.innerHTML = "00:00";
+
 	//language indicator
 	this.languageIndicator = document.createElement("span");
 	this.languageIndicator.style.cssText = "color:#fff;vertical-align:top;font-family:Sans-serif;font-size:28px;margin:0 15px;line-height:40px;cursor:pointer;";
@@ -3610,6 +3616,11 @@ module.exports = function(player) {
 			//if not already return to the main controls
 			thisobj.controlsPanel.innerHTML="";
 			thisobj.controlsPanel.appendChild(thisobj.mainControlsElem);
+		}
+		if(thisobj.player.started==0) {
+			thisobj.playButton.style.backgroundImage="url("+imgPlay+")";
+		} else {
+			thisobj.playButton.style.backgroundImage="url("+imgPause+")";
 		}
 	}
 
@@ -3808,7 +3819,7 @@ module.exports = function() {
 	this.container=document.createElement("div");
 	this.container.style.cssText="position:absolute;bottom:0px;width:100%;text-align:center;";
 	this.subtitleElement=document.createElement("span");
-	this.subtitleElement.style.cssText="visibility:hidden;display:inline-block;margin:30px 30px 2% 30px;padding:5px 10px;max-width:900px;font-size:2em;font-family:sans-serif;"
+	this.subtitleElement.style.cssText="visibility:hidden;display:inline-block;margin:30px 30px 2% 30px;padding:5px 10px;max-width:90%;font-size:2em;font-family:sans-serif;"
 																			+"color:rgba(255,255,255,0.8);text-shadow:-1px -1px 0 rgba(0,0,0,0.5), 1px -1px 0 rgba(0,0,0,0.5), -1px 1px 0 rgba(0,0,0,0.5), 1px 1px 0 rgba(0,0,0,0.5);";
 	this.container.appendChild(this.subtitleElement);
 	this.defaultDuration=4000;
@@ -3930,7 +3941,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.34.0";
+  this.PLAYER_VERSION = "0.34.1";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
@@ -4064,6 +4075,13 @@ module.exports = function(containerId, options) {
   //loadStory()
   //Loads a new story to the player (url or story object)
   this.loadStory=function(source) {
+    // stop playback
+    if(this.started!=0) {
+      this.stop();
+      this.drawQueue.reset(); //stop resets the draw queue but add the default actor back in
+      this.controlsbox.refresh();
+    }
+
     this.eventsManager.callHandlers("loading");
     this.story=new this.Story();
     this.story.onprogress=this.refreshProgress;

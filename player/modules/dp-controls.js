@@ -63,6 +63,7 @@ module.exports = function(player) {
 			thisobj.playButton.style.backgroundImage="url("+imgPlay+")";
 		}
 	}
+
 	//stop
 	this.stopButton=document.createElement("div");
   this.stopButton.style.cssText = controlsCss+"background:url("+imgStop+") no-repeat center;";
@@ -70,10 +71,12 @@ module.exports = function(player) {
 		thisobj.player.stop();
 		thisobj.playButton.style.backgroundImage="url("+imgPlay+")";
 	}
+
 	//fullscreen
 	this.fullscreenButton = document.createElement("div");
   this.fullscreenButton.style.cssText = controlsCss+"background:url("+imgFullscreen+") no-repeat center;";
 	this.fullscreenButton.onclick = function() {thisobj.player.toggleFullscreen();}
+
 	//mute
 	this.muteButton=document.createElement("div");
     this.muteButton.style.cssText = controlsCss+"background:url("+imgSoundOn+") no-repeat center;";
@@ -89,6 +92,7 @@ module.exports = function(player) {
 			thisobj.player.setVolume(0);
 		}
 	}
+
 	//volume
 	this.volumeControl=new VolumeControl(0);
 	this.volumeControl.container.style.display="inline-block";
@@ -106,10 +110,12 @@ module.exports = function(player) {
 		}
 		thisobj.volumeControl.setValue(volume);
 	});
+
 	//time indicator
 	this.timeIndicator = document.createElement("span");
 	this.timeIndicator.style.cssText = "color:#ccc;vertical-align:top;font-family:Sans-serif;font-size:28px;margin:0 15px;line-height:40px;";
 	this.timeIndicator.innerHTML = "00:00";
+
 	//language indicator
 	this.languageIndicator = document.createElement("span");
 	this.languageIndicator.style.cssText = "color:#fff;vertical-align:top;font-family:Sans-serif;font-size:28px;margin:0 15px;line-height:40px;cursor:pointer;";
@@ -159,6 +165,11 @@ module.exports = function(player) {
 			//if not already return to the main controls
 			thisobj.controlsPanel.innerHTML="";
 			thisobj.controlsPanel.appendChild(thisobj.mainControlsElem);
+		}
+		if(thisobj.player.started==0) {
+			thisobj.playButton.style.backgroundImage="url("+imgPlay+")";
+		} else {
+			thisobj.playButton.style.backgroundImage="url("+imgPause+")";
 		}
 	}
 
