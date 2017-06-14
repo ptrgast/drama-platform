@@ -1256,7 +1256,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.13.0";
+  this.EDITOR_VERSION = "0.13.1";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();
@@ -1452,7 +1452,7 @@ drama.Editor = function(containerId) {
   }
 
   this._inflateAssetsManager = function(story) {
-    this.assetsManager.setBaseURL(story._storyURL);    
+    this.assetsManager.setBaseURL(story._storyURL);
     this.assetsManager.clear();
     for(var i=0; i<story.actors.length; i++) {
       var actor = story.actors[i];
@@ -1630,7 +1630,7 @@ drama.Editor = function(containerId) {
     thisobj.eventEditor.save();
     var currentEventId = thisobj.eventEditor.currentView.currentEvent._id;
     var currentEvent = thisobj._getTimelineEventById(currentEventId);
-    if(typeof currentEvent.action.params.tt!="undefined") {
+    if(typeof currentEvent.action!="undefined" && typeof currentEvent.action.params.tt!="undefined") {
       thisobj.timelineEditor.setItemEndTime(currentEventId, currentEvent.action.params.tt);
     }
     var newLabel = thisobj._getTimelineEventLabel(currentEvent);
