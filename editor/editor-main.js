@@ -18,7 +18,7 @@ drama.Editor = function(containerId) {
 
   //--variables--//
   this._logName = "Editor";
-  this.EDITOR_VERSION = "0.13.1";
+  this.EDITOR_VERSION = "0.13.2";
   this.log.message("Version "+this.EDITOR_VERSION, this);
   this.player = new this.Player(null, {showControls:false, height:"100%"});
   this.timelineEditor = new this.TimelineEditor();

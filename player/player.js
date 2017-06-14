@@ -675,7 +675,7 @@ function MovableObject() {
 
     this.image=new Image();
     this.image.onload=function(){loadHandler();}
-    if(typeof assetsPath=="undefined") {assetsPath="";}
+    if(typeof assetsPath=="undefined" || assetsPath==null) {assetsPath="";}
     this.image.src=assetsPath+actor.url;
     //add the motion object
     if(typeof actor.motion=="undefined") {
@@ -1305,7 +1305,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.34.1";
+  this.PLAYER_VERSION = "0.34.2";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;

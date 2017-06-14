@@ -400,7 +400,7 @@ function MovableObject() {
 
     this.image=new Image();
     this.image.onload=function(){loadHandler();}
-    if(typeof assetsPath=="undefined") {assetsPath="";}
+    if(typeof assetsPath=="undefined" || assetsPath==null) {assetsPath="";}
     this.image.src=assetsPath+actor.url;
     //add the motion object
     if(typeof actor.motion=="undefined") {
