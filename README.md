@@ -4,7 +4,7 @@ The Drama Platform allows you to create animated stories for the web by utilizin
 
 ## Examples
 
-You can find an example story here http://ptrgast.com/drama/.
+You can find an example story here https://projects.ptrgast.com/drama/.
 
 ## Development Prerequisites
 
