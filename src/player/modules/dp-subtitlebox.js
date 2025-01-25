@@ -1,5 +1,5 @@
 //////////// SubtitleBox ////////////
-module.exports = function() {
+export function SubtitleBox() {
 	this.container=document.createElement("div");
 	this.container.style.cssText="position:absolute;bottom:0px;width:100%;text-align:center;";
 	this.subtitleElement=document.createElement("span");

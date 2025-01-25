@@ -1,4 +1,4 @@
-module.exports = function() {
+export function ResizeDetector() {
 
   var thisobj = this;
   this._elements = [];

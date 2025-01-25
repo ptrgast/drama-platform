@@ -1,4 +1,4 @@
-module.exports = function(value) {
+export function VolumeControl(value) {
 	//create elements
 	this.container=document.createElement("div");
 	this.container.style.cssText="position:relative;overflow:hidden;cursor:pointer;width:100px;height:20px;margin:10px 0;background-color:rgba(0,0,0,0.5)";

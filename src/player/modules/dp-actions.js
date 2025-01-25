@@ -1,5 +1,5 @@
 //////////// Actions ////////////
-var actions={};
+const actions={};
 
 //teleport
 actions.teleport = {
@@ -97,4 +97,4 @@ actions.movesin = {
     }
 }
 
-module.exports=actions;
+export { actions };

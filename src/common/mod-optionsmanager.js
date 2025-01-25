@@ -1,4 +1,4 @@
-module.exports = function(defaultOptions, userOptions) {
+export function OptionsManager(defaultOptions, userOptions) {
 
   var thisobj = this;
 

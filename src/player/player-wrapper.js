@@ -1,4 +1,6 @@
+import { player } from "./modules/player-main.js";
+
 //Create a package like hierarchy
 if(typeof drama=="undefined") {window.drama={};}
 
-drama.Player = require("./modules/player-main.js");
+drama.Player = player;

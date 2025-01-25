@@ -1,4 +1,4 @@
-module.exports = function() {
+export function EventsManager() {
 
   var thisobj=this;
   this.listeners=[];

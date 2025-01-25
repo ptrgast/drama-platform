@@ -1,9 +1,10 @@
-var VolumeControl=require("./dp-volumecontrol.js");
+import { VolumeControl } from "./dp-volumecontrol.js";
+import { LanguageSelector } from "./dp-languageselector.js";
 
 //PlayerControls
-module.exports = function(player) {
+export function Controls(player) {
 	//prototypes
-	this.LanguageSelector = require("./dp-languageselector.js");
+	this.LanguageSelector = LanguageSelector;
 
 	this.player=player;
 	this.showTime=0; //when the controls showed up

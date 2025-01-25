@@ -1,5 +1,5 @@
 // Displays the story title, the loading progress and the player status
-module.exports = function(player) {
+export function MessagesBox(player) {
   var thisobj=this;
 
   //assets

@@ -1,7 +1,7 @@
 //////////// _CelladoorDebugConsole ////////////
 
 //Player Info Box
-module.exports = function(player) {
+export function InfoBox(player) {
   //function _CelladoorDebugConsole(player) {
   this.player=player;
   this._previousTotalFrames = 0;

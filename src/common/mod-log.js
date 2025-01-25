@@ -1,5 +1,5 @@
 //Log
-module.exports = {
+export const log = {
   ALL:0,
   WARNINGS_ERRORS:1,
   ERRORS:2,

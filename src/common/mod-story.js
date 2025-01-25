@@ -1,4 +1,4 @@
-module.exports = function() {
+export function Story() {
 
   var thisobj = this;
   this.STATUS_NOT_LOADED = 0;

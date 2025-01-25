@@ -1,5 +1,5 @@
 //////////// Motion Functions ////////////
-module.exports={
+export const motions = {
 
   vsin:function(t,actor) {
     actor.motion.x=0;

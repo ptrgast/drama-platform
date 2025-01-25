@@ -1,4 +1,4 @@
-module.exports = function() {
+export function DrawQueue() {
 
   var thisobj = this;
   this.items = new Array();

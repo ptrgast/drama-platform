@@ -1,27 +1,41 @@
 //author: ptrgast
 
-//Create a package like hierarchy
-if(typeof drama=="undefined") {window.drama={};}
+import { log } from "./../../common/mod-log.js";
+import { EventsManager } from "./../../common/mod-eventsmanager.js";
+import { Story } from "./../../common/mod-story.js";
+import { OptionsManager } from "./../../common/mod-optionsmanager.js";
+import { ResizeDetector } from "./../../common/mod-resizedetector.js";
+import { constants } from "./dp-constants.js";
+import { motions } from "./dp-motions.js";
+import { actions } from "./dp-actions.js";
+import { DrawQueue } from "./dp-drawqueue.js";
+import { MessagesBox } from "./dp-messagesbox.js";
+import { InfoBox } from "./dp-infobox.js";
+import { Controls } from "./dp-controls.js";
+import { SubtitleBox } from "./dp-subtitlebox.js";
 
-drama.constants=require("./dp-constants.js");
-drama.motion=require("./dp-motions.js");
-drama.actions=require("./dp-actions.js");
+//Create a package like hierarchy
+if (typeof drama == "undefined") {window.drama={};}
+
+drama.constants = constants;
+drama.motion = motions;
+drama.actions = actions;
 
 //////////// The Player Object ////////////
-module.exports = function(containerId, options) {
+export function player(containerId, options) {
   var thisobj = this;
 
   //--prototypes & includes--//
-  this.log=require("./../../common/mod-log.js");
-  this.EventsManager=require("./../../common/mod-eventsmanager.js");
-  this.DrawQueue=require("./dp-drawqueue.js");
-  this.MessagesBox=require("./dp-messagesbox.js");
-  this.InfoBox=require("./dp-infobox.js");
-  this.Controls=require("./dp-controls.js");
-  this.SubtitleBox=require("./dp-subtitlebox.js");
-  this.Story=require("./../../common/mod-story.js");
-  this.OptionsManager=require("./../../common/mod-optionsmanager.js");
-  this.ResizeDetector=require("./../../common/mod-resizedetector.js");
+  this.log = log;
+  this.EventsManager = EventsManager;
+  this.DrawQueue = DrawQueue;
+  this.MessagesBox = MessagesBox;
+  this.InfoBox = InfoBox;
+  this.Controls = Controls;
+  this.SubtitleBox = SubtitleBox;
+  this.Story = Story;
+  this.OptionsManager = OptionsManager;
+  this.ResizeDetector = ResizeDetector;
 
   //--prepare options--//
   this._defaultOptions = {
@@ -30,7 +44,7 @@ module.exports = function(containerId, options) {
 
   //--variables--//
   this._logName = "Player";
-  this.PLAYER_VERSION = "0.34.2";
+  this.PLAYER_VERSION = "1.0.0";
   this.log.message("Version "+this.PLAYER_VERSION, this);
   this.eventsManager=new this.EventsManager();
   this.story=null;
